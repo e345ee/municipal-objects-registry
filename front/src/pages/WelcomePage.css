@@ -1,0 +1,114 @@
+
+
+:root {
+  --display: "PressStart2P", monospace; 
+  --mono: "VT323", monospace;
+
+  --text: #0f172a;
+  --muted: #475569;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+}
+
+
+
+.container {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 30px;
+  background: #f5f7fb;
+}
+
+
+.card,
+.visual-card {
+  width: 45%;             
+  aspect-ratio: 1 / 1;    
+  border-radius: 10px;    
+  overflow: hidden;  
+  padding: 16px 28px 36px;     
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(2, 6, 23, 0.06);
+}
+
+
+.card {
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px;
+  text-align: left;
+}
+
+
+.title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(28px, 5vw, 64px);
+  line-height: 1.2;
+  color: var(--text);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: clamp(16px, 2vw, 22px);
+  line-height: 1.4;
+  color: var(--muted);
+  max-width: 56ch;
+  margin-bottom: 20px;
+}
+
+.main-btn {
+  font-family: var(--display);
+  font-size: clamp(16px, 2vw, 20px);
+  padding: 18px 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 400;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+  transition: transform 120ms ease, background 120ms;
+}
+
+.main-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+}
+.main-btn:active { transform: translateY(0); }
+
+
+.visual-card {
+  position: relative;
+  background: linear-gradient(135deg, #062477 0%, #60a5fa 35%, #7ab6fa 100%);
+}
+
+
+.city-img {
+  position: absolute;
+  inset: 0;              
+  width: 100%;
+  height: 100%;
+  object-fit: cover;      
+  border-radius: inherit; 
+}
+
+
+@media (max-width: 960px) {
+  .container {
+    flex-direction: column;
+  }
+  .card,
+  .visual-card {
+    width: 100%;
+    max-width: 640px;
+  }
+}

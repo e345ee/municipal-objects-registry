@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="292c21eb-57e7-48e3-aaa3-669a3f262b41" name="helios" url="http://localhost:8080/city-api/api/cities">
+        <fileTransfer rootFolder="/home/studs/s368748/wildfly-preview-26.1.3.Final/standalone/deployments" accessType="SFTP" host="s368748@helios.cs.ifmo.ru" port="2222" sshConfigId="e1b7a0e0-4496-4a88-a1c2-5a36e220c385" sshConfig="s368748@s368748@helios.cs.ifmo.ru:2222 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
