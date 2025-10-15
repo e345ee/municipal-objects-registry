@@ -8,8 +8,11 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import jakarta.persistence.EntityManagerFactory;
+
 import javax.sql.DataSource;
+
 import com.zaxxer.hikari.HikariDataSource;
+
 import java.util.Properties;
 
 @Configuration
@@ -17,7 +20,7 @@ import java.util.Properties;
 @EnableJpaRepositories(
         basePackages = "org.itmo.repository",
         entityManagerFactoryRef = "emf",
-        transactionManagerRef   = "txManager"
+        transactionManagerRef = "txManager"
 )
 public class JpaConfig {
 
@@ -40,7 +43,7 @@ public class JpaConfig {
         Properties jpa = new Properties();
         jpa.put("eclipselink.weaving", "false");
         jpa.put("eclipselink.logging.level", "FINE");
-        jpa.put("eclipselink.ddl-generation", "none"); // схему создали SQL'ом
+        jpa.put("eclipselink.ddl-generation", "none");
         emf.setJpaProperties(jpa);
 
         return emf;

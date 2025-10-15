@@ -6,16 +6,16 @@ import org.springframework.web.servlet.support.AbstractAnnotationConfigDispatche
 public class AppInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
     @Override
     protected Class<?>[] getRootConfigClasses() {
-        return new Class[]{JpaConfig.class};   // корневая конфигурация (БД, JPA)
+        return new Class[]{JpaConfig.class};
     }
 
     @Override
     protected Class<?>[] getServletConfigClasses() {
-        return new Class[]{WebConfig.class};   // настройка MVC и контроллеров
+        return new Class[]{WebConfig.class};
     }
 
     @Override
     protected String[] getServletMappings() {
-        return new String[]{"/"};              // все URL идут через DispatcherServlet
+        return new String[]{"/"};
     }
 }

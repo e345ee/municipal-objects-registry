@@ -1,5 +1,6 @@
 package org.itmo.dto;
 
+import jakarta.validation.constraints.Positive;
 import org.itmo.domain.City;
 import org.itmo.domain.Climate;
 
@@ -9,30 +10,65 @@ import jakarta.validation.constraints.NotNull;
 public class CityDto {
     private Long id;
 
-    @NotBlank
+    @NotBlank(message = "Name cannot be blank")
     private String name;
 
-    @NotNull
-    private String climate; // строка в JSON
+    @Positive(message = "Area must be greater than 0")
+    private int area;
 
-    public CityDto() {}
-    public CityDto(Long id, String name, String climate){ this.id=id; this.name=name; this.climate=climate; }
+    @NotNull(message = "Population cannot be null")
+    @Positive(message = "Population must be greater than 0")
+    private Long population;
 
-    public static CityDto fromEntity(City e){
+    @NotNull(message = "Climate type must be specified")
+    private String climate;
+
+    public CityDto() {
+    }
+
+    public CityDto(Long id, String name, String climate) {
+        this.id = id;
+        this.name = name;
+        this.climate = climate;
+    }
+
+    public static CityDto fromEntity(City e) {
         return new CityDto(e.getId(), e.getName(), e.getClimate().name());
     }
-    public City toNewEntity(){
+
+    public City toNewEntity() {
         City c = new City();
         c.setName(name);
         c.setClimate(Climate.valueOf(climate));
         return c;
     }
-    public void applyToEntity(City c){
+
+    public void applyToEntity(City c) {
         c.setName(name);
         c.setClimate(Climate.valueOf(climate));
     }
 
-    public Long getId(){return id;} public void setId(Long id){this.id=id;}
-    public String getName(){return name;} public void setName(String name){this.name=name;}
-    public String getClimate(){return climate;} public void setClimate(String climate){this.climate=climate;}
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getClimate() {
+        return climate;
+    }
+
+    public void setClimate(String climate) {
+        this.climate = climate;
+    }
 }

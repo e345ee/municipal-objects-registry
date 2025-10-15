@@ -5,14 +5,14 @@ import jakarta.persistence.Converter;
 import org.postgresql.util.PGobject;
 
 @Converter(autoApply = true)
-public class ClimatePgEnumConverter implements AttributeConverter<Climate, Object> {
+public class GovernmentPgEnumConverter implements AttributeConverter<Government, Object> {
 
     @Override
-    public Object convertToDatabaseColumn(Climate attribute) {
+    public Object convertToDatabaseColumn(Government attribute) {
         if (attribute == null) return null;
         try {
             PGobject pg = new PGobject();
-            pg.setType("climate");
+            pg.setType("government");
             pg.setValue(attribute.name());
             return pg;
         } catch (Exception e) {
@@ -21,7 +21,7 @@ public class ClimatePgEnumConverter implements AttributeConverter<Climate, Objec
     }
 
     @Override
-    public Climate convertToEntityAttribute(Object dbData) {
-        return dbData == null ? null : Climate.valueOf(dbData.toString());
+    public Government convertToEntityAttribute(Object dbData) {
+        return dbData == null ? null : Government.valueOf(dbData.toString());
     }
 }
