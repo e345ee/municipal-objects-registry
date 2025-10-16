@@ -13,6 +13,14 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
-        converters.add(new MappingJackson2HttpMessageConverter());
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        mapper.setDateFormat(new com.fasterxml.jackson.databind.util.StdDateFormat().withColonInTimeZone(true));
+
+        converters.add(0, new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper));
     }
 }

@@ -7,6 +7,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
+import java.time.LocalDate;
+import java.util.Date;
+
+
 @Entity
 @Table(name = "city")
 public class City {
@@ -15,29 +19,44 @@ public class City {
     private Long id;
 
     @NotBlank(message = "Name cannot be blank")
+    @Column(name = "name", nullable = false)
     private String name;
 
+    @Column(name = "creation_date", nullable = false, updatable = false, insertable = false)
+    private LocalDate creationDate;
+
     @Positive(message = "Area must be greater than 0")
+    @Column(name = "area", nullable = false)
     private int area;
 
     @NotNull(message = "Population cannot be null")
     @Positive(message = "Population must be greater than 0")
+    @Column(name = "population", nullable = false)
     private Long population;
 
+    @Temporal(TemporalType.DATE)
+    @Column(name = "establishment_date")
+    private Date establishmentDate;
+
+    @NotNull(message = "Population cannot be null")
+    @Column(name = "capital", nullable = false)
     private boolean capital;
 
+    @Column(name = "meters_above_sea_level")          // <- ключевая правка
     private Integer metersAboveSeaLevel;
 
     @Positive(message = "Telephone code must be greater than 0")
     @Max(value = 100000, message = "Telephone code cannot exceed 100000")
+    @Column(name = "telephone_code", nullable = false) // <- ключевая правка
     private Integer telephoneCode;
 
     @NotNull(message = "Climate type must be specified")
-    @Column(name = "CLIMATE", columnDefinition = "climate")
+    @Column(name = "climate", columnDefinition = "climate", nullable = false)
     @Convert(converter = ClimatePgEnumConverter.class)
     private Climate climate;
 
-    @Column(name = "GOVERNMENT", columnDefinition = "government")
+    @NotNull(message = "Government must be specified")
+    @Column(name = "government", columnDefinition = "government", nullable = false)
     @Convert(converter = GovernmentPgEnumConverter.class)
     private Government government;
 
@@ -111,5 +130,21 @@ public class City {
 
     public void setClimate(Climate climate) {
         this.climate = climate;
+    }
+
+    public LocalDate getCreationDate() {
+        return creationDate;
+    }
+
+    public void setCreationDate(LocalDate creationDate) {
+        this.creationDate = creationDate;
+    }
+
+    public Date getEstablishmentDate() {
+        return establishmentDate;
+    }
+
+    public void setEstablishmentDate(Date establishmentDate) {
+        this.establishmentDate = establishmentDate;
     }
 }

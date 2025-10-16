@@ -2,6 +2,7 @@ package org.itmo.controller;
 
 import org.itmo.dto.CityDto;
 import org.itmo.service.CityService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -22,23 +23,25 @@ public class CityController {
         return service.list();
     }
 
-    @GetMapping("/{id}")
-    public CityDto get(@PathVariable Long id) {
-        return service.get(id);
-    }
 
     @PostMapping
-    public CityDto crete(@Valid @RequestBody CityDto dto) {
+    public CityDto create(@Valid @RequestBody CityDto dto) {
         return service.create(dto);
     }
 
     @PutMapping("/{id}")
-    CityDto update(@PathVariable Long id, @Valid @RequestBody CityDto dto) {
+    public CityDto update(@PathVariable("id") Long id, @Valid @RequestBody CityDto dto) {
         return service.update(id, dto);
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         service.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}")
+    public CityDto get(@PathVariable("id") Long id) {
+        return service.get(id);
     }
 }
