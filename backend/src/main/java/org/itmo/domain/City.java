@@ -60,6 +60,7 @@ public class City {
     @Convert(converter = GovernmentPgEnumConverter.class)
     private Government government;
 
+
     public Long getId() {
         return id;
     }

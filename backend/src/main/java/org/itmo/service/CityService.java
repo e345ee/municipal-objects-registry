@@ -41,7 +41,8 @@ public class CityService {
 
     @Transactional
     public CityDto update(Long id, CityDto dto) {
-        City e = repo.findById(id).orElseThrow();
+        City e = repo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
@@ -59,7 +60,8 @@ public class CityService {
 
     @Transactional(readOnly = true)
     public CityDto get(Long id) {
-        return toDto(repo.findById(id).orElseThrow());
+        return toDto(repo.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден")));
     }
 
     @Transactional(readOnly = true)
@@ -67,6 +69,13 @@ public class CityService {
         return repo.findAll().stream().map(this::toDto).toList();
     }
 
+    @Transactional
+    public void delete(Long id) {
+        if (!repo.existsById(id)) {
+            throw new NoSuchElementException("Город с id=" + id + " не найден");
+        }
+        repo.deleteById(id);
+    }
 
     private CityDto toDto(City e) {
         CityDto dto = new CityDto();
@@ -100,11 +109,4 @@ public class CityService {
         return e;
     }
 
-    @Transactional
-    public void delete(Long id) {
-        if (!repo.existsById(id)) {
-            throw new NoSuchElementException("Город с id=" + id + " не найден");
-        }
-        repo.deleteById(id);
-    }
 }

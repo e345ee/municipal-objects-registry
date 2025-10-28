@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS city CASCADE;
+DROP TABLE IF EXISTS coordinates CASCADE;
+DROP TABLE IF EXISTS human CASCADE;
 
 DO
 $$
@@ -20,46 +22,41 @@ CREATE TYPE government AS ENUM
     ('DEMARCHY', 'KLEPTOCRACY', 'CORPORATOCRACY', 'PLUTOCRACY', 'THALASSOCRACY');
 
 
+
+CREATE TABLE coordinates
+(
+    id BIGSERIAL PRIMARY KEY,
+    x  REAL NOT NULL CHECK (x <= 460),
+    y  REAL NOT NULL
+);
+
+CREATE TABLE human
+(
+    id     BIGSERIAL PRIMARY KEY,
+    height REAL NOT NULL CHECK (height > 0)
+);
+
 CREATE TABLE city
 (
     id                     BIGSERIAL PRIMARY KEY,
 
-    -- name: NOT NULL + "не пустая строка"
     name                   VARCHAR(255) NOT NULL,
-    CONSTRAINT city_name_not_blank
-        CHECK (length(btrim(name)) > 0),
+    CONSTRAINT city_name_not_blank CHECK (length(btrim(name)) > 0),
 
-    -- area: положительное целое
-    area                   INTEGER      NOT NULL,
-    CONSTRAINT city_area_positive
-        CHECK (area > 0),
+    creation_date          DATE         NOT NULL DEFAULT CURRENT_DATE,
+    area                   INTEGER      NOT NULL CHECK (area > 0),
+    population             BIGINT       NOT NULL CHECK (population > 0),
 
-    -- population: положительное целое
-    population             BIGINT       NOT NULL,
-    CONSTRAINT city_population_positive
-        CHECK (population > 0),
-
-    -- capital: обязательный флаг
+    establishment_date     DATE,
     capital                BOOLEAN      NOT NULL,
 
-    -- metersAboveSeaLevel:
-    meters_above_sea_level INTEGER       NOT NULL,
+    meters_above_sea_level INTEGER,
 
-    -- telephoneCode: обязателен, > 0
-    telephone_code         INTEGER      NOT NULL,
-    CONSTRAINT city_telephone_code_positive
-        CHECK (telephone_code > 0),
+    telephone_code         INTEGER      NOT NULL CHECK (telephone_code > 0 AND telephone_code <= 100000),
 
-    -- enum-поля из PG enum-типов
     climate                climate      NOT NULL,
-    government             government   NOT NULL,
+    government             government
 
-
-    -- creationDate: генерируется БД автоматически как текущая дата, NOT NULL
-    creation_date          DATE         NOT NULL DEFAULT CURRENT_DATE,
-
-    -- establishmentDate: обычная дата, может быть NULL
-    establishment_date     DATE
 );
 
 

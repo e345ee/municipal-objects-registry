@@ -6,7 +6,6 @@ export default function WelcomePage() {
 
   return (
     <main className="container">
-      {/* Левая квадрат-карточка */}
       <section className="card">
         <h1 className="title">Big Broser is Here.</h1>
         <p className="subtitle">

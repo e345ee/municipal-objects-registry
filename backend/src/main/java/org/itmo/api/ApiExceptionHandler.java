@@ -84,9 +84,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(HttpStatus.BAD_REQUEST, "validation_failed", "Validation failed", req.getRequestURI(), java.util.Map.of("fields", fields));
     }
 
-    @ExceptionHandler({NoSuchElementException.class, EntityNotFoundException.class})
-    public ResponseEntity<Object> handleNotFound(RuntimeException ex, HttpServletRequest req) {
-        return respond(HttpStatus.NOT_FOUND, "not_found", "Resource not found", req.getRequestURI(), null);
+    @ExceptionHandler({NoSuchElementException.class, jakarta.persistence.EntityNotFoundException.class})
+    public ResponseEntity<Object> handleNotFound(RuntimeException ex, jakarta.servlet.http.HttpServletRequest req) {
+        String msg = java.util.Optional.ofNullable(ex.getMessage())
+                .filter(s -> !s.isBlank())
+                .orElse("Resource not found");
+        return respond(HttpStatus.NOT_FOUND, "not_found", msg, req.getRequestURI(), null);
     }
 
     @ExceptionHandler({DataIntegrityViolationException.class, SQLIntegrityConstraintViolationException.class})

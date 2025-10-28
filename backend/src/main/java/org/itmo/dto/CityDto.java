@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.Date;
 
 public class CityDto {
-    @Null(message = "Id must be omitted on create")
+    @Null(message = "Id must be omitted on create or update")
     private Long id;
 
     @NotBlank(message = "Name cannot be blank")
@@ -64,39 +64,6 @@ public class CityDto {
         this.government = government;
         this.creationDate = creationDate;
         this.establishmentDate = establishmentDate;
-    }
-
-    public static CityDto fromEntity(City e) {
-        return new CityDto(e.getId(), e.getName(), e.getArea(), e.getPopulation(), e.isCapital(), e.getMetersAboveSeaLevel(), e.getTelephoneCode(), e.getClimate().name(), e.getGovernment().name(), e.getCreationDate(),        // <- из БД
-                e.getEstablishmentDate()
-        );
-    }
-
-    public City toNewEntity() {
-        City c = new City();
-        c.setName(name);
-        c.setArea(area);
-        c.setPopulation(population);
-        c.setCapital(capital);
-        c.setMetersAboveSeaLevel(metersAboveSeaLevel);
-        c.setTelephoneCode(telephoneCode);
-        c.setClimate(Climate.valueOf(climate));
-        c.setGovernment(Government.valueOf(government));
-        c.setEstablishmentDate(establishmentDate);
-        return c;
-    }
-
-
-    public void applyToEntity(City c) {
-        c.setName(name);
-        c.setArea(area);
-        c.setPopulation(population);
-        c.setCapital(capital);
-        c.setMetersAboveSeaLevel(metersAboveSeaLevel);
-        c.setTelephoneCode(telephoneCode);
-        c.setClimate(Climate.valueOf(climate));
-        c.setGovernment(Government.valueOf(government));
-        c.setEstablishmentDate(establishmentDate);
     }
 
     public int getArea() {
@@ -187,4 +154,17 @@ public class CityDto {
     public void setClimate(String climate) {
         this.climate = climate;
     }
+
+    public void setArea(Integer area) {
+        this.area = area;
+    }
+
+    public Boolean getCapital() {
+        return capital;
+    }
+
+    public void setCapital(Boolean capital) {
+        this.capital = capital;
+    }
+
 }
