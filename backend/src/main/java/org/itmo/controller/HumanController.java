@@ -1,6 +1,8 @@
 package org.itmo.controller;
 
 import jakarta.validation.Valid;
+import org.itmo.api.HumanPageRequest;
+import org.itmo.api.PageDto;
 import org.itmo.dto.CoordinatesDto;
 import org.itmo.dto.HumanDto;
 import org.itmo.service.CoordinatesService;
@@ -20,7 +22,15 @@ public class HumanController {
     }
 
     @GetMapping
-    public List<HumanDto> list(){
+    public PageDto<HumanDto> page(
+            @ModelAttribute HumanPageRequest rq,   // фильтры: id, height
+            org.springframework.data.domain.Pageable pageable
+    ) {
+        return service.page(rq, pageable);
+    }
+
+    @GetMapping("/all")
+    public List<HumanDto> list() {
         return service.list();
     }
 

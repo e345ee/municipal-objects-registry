@@ -1,9 +1,13 @@
 package org.itmo.controller;
 
 import jakarta.validation.Valid;
+import org.itmo.api.CoordinatesPageRequest;
+import org.itmo.api.PageDto;
 import org.itmo.dto.CityDto;
 import org.itmo.dto.CoordinatesDto;
 import org.itmo.service.CoordinatesService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,10 +23,17 @@ public class CoordinatesController {
     }
 
     @GetMapping
-    public List<CoordinatesDto> list(){
-        return service.list();
+    public PageDto<CoordinatesDto> page(
+            @ModelAttribute CoordinatesPageRequest rq,
+            Pageable pageable
+    ) {
+        return service.page(rq, pageable);
     }
 
+    @GetMapping("/all")
+    public List<CoordinatesDto> list() {
+        return service.list();
+    }
     @PostMapping
     public CoordinatesDto create(@Valid @RequestBody CoordinatesDto dto) {
         return service.create(dto);

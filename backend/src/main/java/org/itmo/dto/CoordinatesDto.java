@@ -1,5 +1,6 @@
 package org.itmo.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Null;
@@ -69,5 +70,14 @@ public class CoordinatesDto {
 
     public void setX(Float x) {
         this.x = x;
+    }
+
+    @Override
+    public String toString() {
+        return "CoordinatesDto{" +
+                "id=" + id +
+                ", x=" + x +
+                ", y=" + y +
+                '}';
     }
 }

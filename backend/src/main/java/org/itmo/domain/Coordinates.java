@@ -39,4 +39,13 @@ public class Coordinates {
     public void setY(Float y) {
         this.y = y;
     }
+
+    @Override
+    public String toString() {
+        return "Coordinates{" +
+                "id=" + id +
+                ", x=" + x +
+                ", y=" + y +
+                '}';
+    }
 }

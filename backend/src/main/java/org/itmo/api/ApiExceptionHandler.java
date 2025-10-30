@@ -1,7 +1,6 @@
 package org.itmo.api;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.postgresql.util.PSQLException;
@@ -10,10 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.lang.Nullable;
 import org.springframework.validation.FieldError;
@@ -24,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.net.URI;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
 
@@ -108,6 +105,54 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         log.error("Unhandled error", ex);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "Unexpected server error", req.getRequestURI(), null);
     }
+
+    @ExceptionHandler(DeletionBlockedException.class)
+    public ResponseEntity<?> handleDeletionBlocked(
+            DeletionBlockedException ex,
+            HttpServletRequest request
+    ) {
+        var body = Map.of(
+                "error", "deletion_blocked",
+                "message", ex.getMessage(),
+                "entity", ex.getEntity(),
+                "id", ex.getId(),
+                "usageCount", ex.getUsageCount(),
+                "blockingCityIds", ex.getBlockingCityIds(),
+                "status", 409,
+                "path", request.getRequestURI(),
+                "timestamp", java.time.OffsetDateTime.now().toString()
+        );
+
+        return ResponseEntity.status(409).body(body);
+    }
+
+    @ExceptionHandler(RelatedEntityNotFound.class)
+    public ResponseEntity<Map<String,Object>> handleRelatedNotFound(RelatedEntityNotFound ex,
+                                                                    HttpServletRequest req) {
+        var body = new java.util.LinkedHashMap<String,Object>();
+        body.put("error", "related_entity_not_found");
+        body.put("message", ex.getMessage());
+        body.put("entity", ex.getEntity());
+        body.put("id", ex.getId());
+        body.put("status", 404);
+        body.put("path", req.getRequestURI());
+        body.put("timestamp", java.time.OffsetDateTime.now().toString());
+        return ResponseEntity.status(404).body(body);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String,Object>> handleIllegalArgument(IllegalArgumentException ex,
+                                                                    HttpServletRequest req) {
+        var body = new java.util.LinkedHashMap<String,Object>();
+        body.put("error", "bad_request");
+        body.put("message", ex.getMessage());
+        body.put("status", 400);
+        body.put("path", req.getRequestURI());
+        body.put("timestamp", java.time.OffsetDateTime.now().toString());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+
 
 
     private ResponseEntity<Object> respond(

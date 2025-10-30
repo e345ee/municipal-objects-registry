@@ -1,14 +1,26 @@
 package org.itmo.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.*;
 import org.itmo.domain.City;
 import org.itmo.domain.Climate;
 import org.itmo.domain.Government;
+
 import java.time.LocalDate;
 import java.util.Date;
 
 public class CityDto {
+
+    @JsonIgnore
+    private boolean coordinatesIdSpecified;
+    @JsonIgnore
+    private boolean coordinatesSpecified;
+    @JsonIgnore
+    private boolean governorIdSpecified;
+    @JsonIgnore
+    private boolean governorSpecified;
+
     @Null(message = "Id must be omitted on create or update")
     private Long id;
 
@@ -49,22 +61,15 @@ public class CityDto {
             message = "Invalid government")
     private String government;
 
+    private Long coordinatesId;
+    private CoordinatesDto coordinates;
+
+    private Long governorId;
+    private HumanDto governor;
+
     public CityDto() {
     }
 
-    public CityDto(Long id, String name, int area, Long population, boolean capital, Integer metersAboveSeaLevel, Integer telephoneCode, String climate, String government, LocalDate creationDate, Date establishmentDate) {
-        this.id = id;
-        this.name = name;
-        this.area = area;
-        this.population = population;
-        this.capital = capital;
-        this.metersAboveSeaLevel = metersAboveSeaLevel;
-        this.telephoneCode = telephoneCode;
-        this.climate = climate;
-        this.government = government;
-        this.creationDate = creationDate;
-        this.establishmentDate = establishmentDate;
-    }
 
     public int getArea() {
         return area;
@@ -139,6 +144,27 @@ public class CityDto {
         this.id = id;
     }
 
+    @Override
+    public String toString() {
+        return "CityDto{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", creationDate=" + creationDate +
+                ", area=" + area +
+                ", population=" + population +
+                ", establishmentDate=" + establishmentDate +
+                ", capital=" + capital +
+                ", metersAboveSeaLevel=" + metersAboveSeaLevel +
+                ", telephoneCode=" + telephoneCode +
+                ", climate='" + climate + '\'' +
+                ", government='" + government + '\'' +
+                ", coordinatesId=" + coordinatesId +
+                ", coordinates=" + coordinates +
+                ", governorId=" + governorId +
+                ", governor=" + governor +
+                '}';
+    }
+
     public String getName() {
         return name;
     }
@@ -165,6 +191,37 @@ public class CityDto {
 
     public void setCapital(Boolean capital) {
         this.capital = capital;
+    }
+
+    public void setCoordinatesId(Long coordinatesId) {
+        this.coordinatesId = coordinatesId;
+        this.coordinatesIdSpecified = true;
+    }
+    public Long getCoordinatesId() { return coordinatesId; }
+
+    public void setCoordinates(CoordinatesDto coordinates) {
+        this.coordinates = coordinates;
+        this.coordinatesSpecified = true;
+    }
+    public CoordinatesDto getCoordinates() { return coordinates; }
+
+    public void setGovernorId(Long governorId) {
+        this.governorId = governorId;
+        this.governorIdSpecified = true;
+    }
+    public Long getGovernorId() { return governorId; }
+
+    public void setGovernor(HumanDto governor) {
+        this.governor = governor;
+        this.governorSpecified = true;
+    }
+    public HumanDto getGovernor() { return governor; }
+
+    @JsonIgnore public boolean isCoordinatesSpecified() {
+        return coordinatesIdSpecified || coordinatesSpecified;
+    }
+    @JsonIgnore public boolean isGovernorSpecified() {
+        return governorIdSpecified || governorSpecified;
     }
 
 }

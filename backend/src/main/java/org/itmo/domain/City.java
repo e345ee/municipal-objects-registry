@@ -1,19 +1,27 @@
 package org.itmo.domain;
 
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import org.eclipse.persistence.annotations.FetchAttribute;
+import org.eclipse.persistence.annotations.FetchGroup;
 
 import java.time.LocalDate;
 import java.util.Date;
 
-
 @Entity
 @Table(name = "city")
+@FetchGroup(
+        name = "city.withRelations",
+        attributes = {
+                @FetchAttribute(name = "coordinates"),
+                @FetchAttribute(name = "governor")
+        }
+)
 public class City {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,15 +30,19 @@ public class City {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "creation_date", nullable = false, updatable = false, insertable = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "coordinates_id", nullable = false)
+    private Coordinates coordinates;
+
+    @Column(name = "creation_date", nullable = false, insertable = false, updatable = false)
     private LocalDate creationDate;
 
-    @Positive(message = "Area must be greater than 0")
+    @Positive(message = "Area must be > 0")
     @Column(name = "area", nullable = false)
     private int area;
 
     @NotNull(message = "Population cannot be null")
-    @Positive(message = "Population must be greater than 0")
+    @Positive(message = "Population must be > 0")
     @Column(name = "population", nullable = false)
     private Long population;
 
@@ -38,114 +50,101 @@ public class City {
     @Column(name = "establishment_date")
     private Date establishmentDate;
 
-    @NotNull(message = "Population cannot be null")
     @Column(name = "capital", nullable = false)
     private boolean capital;
 
-    @Column(name = "meters_above_sea_level")          // <- ключевая правка
+    @Column(name = "meters_above_sea_level")
     private Integer metersAboveSeaLevel;
 
-    @Positive(message = "Telephone code must be greater than 0")
-    @Max(value = 100000, message = "Telephone code cannot exceed 100000")
-    @Column(name = "telephone_code", nullable = false) // <- ключевая правка
+    @Positive(message = "Telephone code must be > 0")
+    @Max(value = 100000, message = "Telephone code must be ≤ 100000")
+    @Column(name = "telephone_code")
     private Integer telephoneCode;
 
-    @NotNull(message = "Climate type must be specified")
-    @Column(name = "climate", columnDefinition = "climate", nullable = false)
+    @NotNull(message = "Climate must be specified")
     @Convert(converter = ClimatePgEnumConverter.class)
+    @Column(name = "climate", columnDefinition = "climate", nullable = false)
     private Climate climate;
 
-    @NotNull(message = "Government must be specified")
-    @Column(name = "government", columnDefinition = "government", nullable = false)
     @Convert(converter = GovernmentPgEnumConverter.class)
+    @Column(name = "government", columnDefinition = "government")
     private Government government;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "governor_id")
+    private Human governor;
 
-    public Long getId() {
-        return id;
-    }
 
-    public int getArea() {
-        return area;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setArea(int area) {
-        this.area = area;
-    }
-
-    public Government getGovernment() {
-        return government;
-    }
-
-    public void setGovernment(Government government) {
-        this.government = government;
-    }
-
-    public Integer getTelephoneCode() {
-        return telephoneCode;
-    }
-
-    public void setTelephoneCode(Integer telephoneCode) {
-        this.telephoneCode = telephoneCode;
-    }
-
-    public Integer getMetersAboveSeaLevel() {
-        return metersAboveSeaLevel;
-    }
-
-    public void setMetersAboveSeaLevel(Integer metersAboveSeaLevel) {
-        this.metersAboveSeaLevel = metersAboveSeaLevel;
-    }
-
-    public boolean isCapital() {
-        return capital;
-    }
-
-    public void setCapital(boolean capital) {
-        this.capital = capital;
-    }
-
-    public Long getPopulation() {
-        return population;
-    }
-
-    public void setPopulation(Long population) {
-        this.population = population;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
+    public String getName() { return name; }
     public void setName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Name cannot be null or blank");
+        }
         this.name = name;
     }
 
-    public Climate getClimate() {
-        return climate;
+    public Coordinates getCoordinates() { return coordinates; }
+    public void setCoordinates(Coordinates coordinates) {
+        if (coordinates == null) {
+            throw new IllegalArgumentException("Coordinates cannot be null");
+        }
+        this.coordinates = coordinates;
     }
 
+    public LocalDate getCreationDate() { return creationDate; }
+    public void setCreationDate(LocalDate creationDate) { this.creationDate = creationDate; }
+
+    public Integer getArea() { return area; }
+    public void setArea(Integer area) {
+        if (area == null || area <= 0) {
+            throw new IllegalArgumentException("Area must be > 0");
+        }
+        this.area = area;
+    }
+
+    public Long getPopulation() { return population; }
+    public void setPopulation(Long population) {
+        if (population == null || population <= 0) {
+            throw new IllegalArgumentException("Population must be > 0 and not null");
+        }
+        this.population = population;
+    }
+
+    public Date getEstablishmentDate() { return establishmentDate; }
+    public void setEstablishmentDate(Date establishmentDate) { this.establishmentDate = establishmentDate; }
+
+    public Boolean isCapital() { return capital; }
+    public void setCapital(Boolean capital) {
+        this.capital = (capital != null && capital);
+    }
+
+    public Integer getMetersAboveSeaLevel() { return metersAboveSeaLevel; }
+    public void setMetersAboveSeaLevel(Integer metersAboveSeaLevel) { this.metersAboveSeaLevel = metersAboveSeaLevel; }
+
+    public Integer getTelephoneCode() { return telephoneCode; }
+    public void setTelephoneCode(Integer telephoneCode) {
+        if (telephoneCode != null) {
+            if (telephoneCode <= 0 || telephoneCode > 100000) {
+                throw new IllegalArgumentException("Telephone code must be > 0 and ≤ 100000");
+            }
+        }
+        this.telephoneCode = telephoneCode;
+    }
+
+    public Climate getClimate() { return climate; }
     public void setClimate(Climate climate) {
+        if (climate == null) {
+            throw new IllegalArgumentException("Climate must be specified");
+        }
         this.climate = climate;
     }
 
-    public LocalDate getCreationDate() {
-        return creationDate;
-    }
+    public Government getGovernment() { return government; }
+    public void setGovernment(Government government) { this.government = government; }
 
-    public void setCreationDate(LocalDate creationDate) {
-        this.creationDate = creationDate;
-    }
-
-    public Date getEstablishmentDate() {
-        return establishmentDate;
-    }
-
-    public void setEstablishmentDate(Date establishmentDate) {
-        this.establishmentDate = establishmentDate;
-    }
+    public Human getGovernor() { return governor; }
+    public void setGovernor(Human governor) { this.governor = governor; }
 }

@@ -55,11 +55,25 @@ CREATE TABLE city
     telephone_code         INTEGER      NOT NULL CHECK (telephone_code > 0 AND telephone_code <= 100000),
 
     climate                climate      NOT NULL,
-    government             government
+    government             government,
 
+    coordinates_id         BIGINT    NOT NULL,
+    governor_id            BIGINT,
+
+    CONSTRAINT fk_city_coordinates
+        FOREIGN KEY (coordinates_id)
+            REFERENCES coordinates(id)
+            ON DELETE RESTRICT,
+
+    CONSTRAINT fk_city_governor
+        FOREIGN KEY (governor_id)
+            REFERENCES human(id)
+            ON DELETE RESTRICT
 );
 
 
-CREATE INDEX idx_city_name ON city (name);
-CREATE INDEX idx_city_climate ON city (climate);
-CREATE INDEX idx_city_government ON city (government);
+CREATE INDEX idx_city_name         ON city (name);
+CREATE INDEX idx_city_climate      ON city (climate);
+CREATE INDEX idx_city_government   ON city (government);
+CREATE INDEX idx_city_coordinates  ON city (coordinates_id);
+CREATE INDEX idx_city_governor     ON city (governor_id);
