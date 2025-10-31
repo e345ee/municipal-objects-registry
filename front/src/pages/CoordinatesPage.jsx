@@ -64,7 +64,6 @@ export default function CoordinatesPage() {
   const onEditClick = (row) => { setEditing(row); setEditOpen(true); };
 
   const handleDelete = async (id) => {
-    if (!window.confirm(`Удалить координаты ID ${id}?`)) return;
     try {
       await CoordinatesApi.remove(id);
       fetchPage(page, size, filters, sort);
