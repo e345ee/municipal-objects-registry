@@ -23,7 +23,7 @@ public class HumanController {
 
     @GetMapping
     public PageDto<HumanDto> page(
-            @ModelAttribute HumanPageRequest rq,   // фильтры: id, height
+            @ModelAttribute HumanPageRequest rq,
             org.springframework.data.domain.Pageable pageable
     ) {
         return service.page(rq, pageable);

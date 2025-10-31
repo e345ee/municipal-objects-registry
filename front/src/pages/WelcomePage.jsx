@@ -11,7 +11,7 @@ export default function WelcomePage() {
         <p className="subtitle">
           BB is the latest service for storing and tracking data about different cities in your MetaVerse.
         </p>
-        <button className="main-btn" onClick={() => navigate("/about")}>
+        <button className="main-btn" onClick={() => navigate("/cities")}>
           Test right now
         </button>
       </section>

@@ -10,78 +10,112 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+
+
+import jakarta.persistence.criteria.JoinType;
+import org.itmo.domain.City;
+import org.itmo.domain.Climate;
+import org.itmo.domain.Government;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.stream.Collectors;
+
+/**
+ * Конструктор спецификации по CityPageRequest.
+ * Включает все поля из CityPageRequest.
+ */
 public final class CitySpecifications {
 
     private CitySpecifications() {}
 
     public static Specification<City> byRequest(CityPageRequest rq) {
-        return Specification.where(idEq(rq.getId()))
-                .and(coordinatesIdEq(rq.getCoordinatesId()))
-                .and(governorFilter(rq.getGovernorId(), rq.getGovernorIdIsNull()))
-                .and(nameEq(rq.getName()))
-                .and(climateEq(rq.getClimate()))
-                .and(governmentEq(rq.getGovernment()))
-                .and(populationEq(rq.getPopulation()))
-                .and(telephoneCodeEq(rq.getTelephoneCode()));
+        return Specification
+                .where(eqLong("id", rq.getId()))
+                .and(containsIgnoreCase("name", rq.getName()))
+                .and(eqEnumName("climate", rq.getClimate(), Climate.class))
+                .and(eqEnumName("government", rq.getGovernment(), Government.class))
+                .and(eqLong("population", rq.getPopulation()))
+                .and(eqInteger("telephoneCode", rq.getTelephoneCode()))
+                .and(eqBoolean("capital", rq.getCapital()))
+                .and(eqLong("area", rq.getArea()))
+                .and(eqLong("metersAboveSeaLevel", rq.getMetersAboveSeaLevel()))
+                .and(nestedEq("coordinates", "id", rq.getCoordinatesId()))
+                .and(nestedEq("governor", "id", rq.getGovernorId()))
+                .and(nestedNullCheck("governor", "id", rq.getGovernorIdIsNull()))
+                .and(eqDate("creationDate", rq.getCreationDate()))
+                .and(eqDate("establishmentDate", rq.getEstablishmentDate()));
     }
 
 
+    private static Specification<City> eqDate(String field, java.time.LocalDate date) {
+        if (date == null) return null;
+        return (root, q, cb) -> {
+            Class<?> attrType = root.get(field).getJavaType();
 
 
-    private static Specification<City> idEq(Long id) {
-        return (root, q, cb) -> (id == null) ? null : cb.equal(root.get("id"), id);
+            if (java.sql.Date.class.isAssignableFrom(attrType) || java.util.Date.class.isAssignableFrom(attrType)) {
+                return cb.equal(root.get(field), java.sql.Date.valueOf(date));
+            }
+
+
+            if (java.time.LocalDate.class.isAssignableFrom(attrType)) {
+                return cb.equal(root.get(field), date);
+            }
+
+
+            return cb.equal(root.get(field), java.sql.Date.valueOf(date));
+        };
     }
 
-    private static Specification<City> coordinatesIdEq(Long coordId) {
-        return (root, q, cb) -> (coordId == null) ? null
-                : cb.equal(root.join("coordinates", JoinType.LEFT).get("id"), coordId);
+    private static Specification<City> containsIgnoreCase(String field, String value) {
+        if (value == null || value.isBlank()) return null;
+        return (root, q, cb) -> cb.like(cb.lower(root.get(field)), "%" + value.toLowerCase() + "%");
     }
 
-
-    private static Specification<City> governorFilter(Long governorId, Boolean isNull) {
-        if (Boolean.TRUE.equals(isNull)) {
-            return (root, q, cb) -> cb.isNull(root.get("governor"));
-        }
-        if (governorId != null) {
-            return (root, q, cb) ->
-                    cb.equal(root.join("governor", JoinType.LEFT).get("id"), governorId);
-        }
-        return null;
+    private static <E extends Enum<E>> Specification<City> eqEnumName(String field, String value, Class<E> enumClass) {
+        if (value == null || value.isBlank()) return null;
+        E enumVal = Enum.valueOf(enumClass, value.trim().toUpperCase(Locale.ROOT));
+        return (root, q, cb) -> cb.equal(root.get(field), enumVal);
     }
 
-
-
-
-    private static Specification<City> nameEq(String name) {
-        return (root, q, cb) -> (name == null) ? null : cb.equal(root.get("name"), name);
+    private static Specification<City> nestedEq(String assoc, String nestedField, Object val) {
+        if (val == null) return null;
+        return (root, q, cb) -> cb.equal(root.join(assoc, JoinType.LEFT).get(nestedField), val);
     }
 
-    private static Specification<City> climateEq(String climate) {
-        if (climate == null) return null;
-        Climate parsed = parseClimate(climate);
-        return (root, q, cb) -> cb.equal(root.get("climate"), parsed);
+    private static Specification<City> nestedNullCheck(String assoc, String nestedField, Boolean isNull) {
+        if (isNull == null) return null;
+        return (root, q, cb) -> isNull
+                ? cb.isNull(root.join(assoc, JoinType.LEFT).get(nestedField))
+                : cb.isNotNull(root.join(assoc, JoinType.LEFT).get(nestedField));
     }
 
-    private static Specification<City> governmentEq(String government) {
-        if (government == null) return null;
-        Government parsed = parseGovernment(government);
-        return (root, q, cb) -> cb.equal(root.get("government"), parsed);
+    private static Specification<City> eqLong(String field, Long val) {
+        if (val == null) return null;
+        return (root, q, cb) -> cb.equal(root.get(field), val);
     }
 
-
-
-
-    private static Specification<City> populationEq(Long population) {
-        return (root, q, cb) -> (population == null) ? null : cb.equal(root.get("population"), population);
+    private static Specification<City> eqInteger(String field, Integer val) {
+        if (val == null) return null;
+        return (root, q, cb) -> cb.equal(root.get(field), val);
     }
 
-    private static Specification<City> telephoneCodeEq(Integer tel) {
-        return (root, q, cb) -> (tel == null) ? null : cb.equal(root.get("telephoneCode"), tel);
+    private static Specification<City> eqBoolean(String field, Boolean val) {
+        if (val == null) return null;
+        return (root, q, cb) -> cb.equal(root.get(field), val);
     }
 
+    private static Specification<City> eqLocalDate(String field, LocalDate date) {
+        if (date == null) return null;
+        return (root, q, cb) -> cb.equal(root.get(field), date);
+    }
 
+    /* ===== ниже – необязательные парсеры/сервисные методы (если захотите строгие ошибки по enum’ам) ===== */
 
-
+    @SuppressWarnings("unused")
     private static Climate parseClimate(String v) {
         for (Climate c : Climate.values()) {
             if (c.name().equalsIgnoreCase(v)) return c;
@@ -89,6 +123,7 @@ public final class CitySpecifications {
         throw new IllegalArgumentException("Unknown climate: " + v + ". Allowed: " + allowedList(Climate.values()));
     }
 
+    @SuppressWarnings("unused")
     private static Government parseGovernment(String v) {
         for (Government g : Government.values()) {
             if (g.name().equalsIgnoreCase(v)) return g;

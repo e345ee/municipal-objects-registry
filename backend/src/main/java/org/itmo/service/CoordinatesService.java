@@ -4,10 +4,14 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import org.itmo.api.*;
+import org.itmo.domain.City;
 import org.itmo.domain.Coordinates;
+import org.itmo.dto.ChangeAction;
+import org.itmo.dto.CityDto;
 import org.itmo.dto.CoordinatesDto;
 import org.itmo.repository.CityRepository;
 import org.itmo.repository.CoordinatesRepository;
+import org.itmo.websocet.WsEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,13 +26,17 @@ public class CoordinatesService {
 
     private  final CoordinatesRepository repo;
     private final CityRepository cityRepo;
+    private final WsEventPublisher ws;
 
     @PersistenceContext
     private EntityManager em;
 
-    public CoordinatesService(CoordinatesRepository repo, CityRepository cityRepo) {
+    public CoordinatesService(CoordinatesRepository repo,
+                              CityRepository cityRepo,
+                              WsEventPublisher ws) {
         this.repo = repo;
         this.cityRepo = cityRepo;
+        this.ws = ws;
     }
 
     @Transactional(readOnly = true)
@@ -46,8 +54,11 @@ public class CoordinatesService {
         coordinates = repo.save(coordinates);
         repo.flush();
         em.refresh(coordinates);
+
+        ws.sendChange("Coordinates", ChangeAction.CREATED, CoordinatesDto.fromEntity(coordinates).getId(), CoordinatesDto.fromEntity(coordinates));
         return CoordinatesDto.fromEntity(coordinates);
     }
+
 
     @Transactional
     public CoordinatesDto update(Long id, CoordinatesDto dto) {
@@ -56,6 +67,8 @@ public class CoordinatesService {
 
         dto.applyToEntity(e);
 
+        ws.sendChange("Coordinates", ChangeAction.UPDATED, CoordinatesDto.fromEntity(e).getId(), CoordinatesDto.fromEntity(e));
+
         return CoordinatesDto.fromEntity(e);
     }
 
@@ -63,6 +76,7 @@ public class CoordinatesService {
     public CoordinatesDto get(Long id) {
         return CoordinatesDto.fromEntity(repo.findById(id).orElseThrow(() -> new EntityNotFoundException("Coordinates с id=" + id + " не найден")));
     }
+
 
     @Transactional(readOnly = true)
     public List<CoordinatesDto> list(){
@@ -80,6 +94,7 @@ public class CoordinatesService {
             throw new DeletionBlockedException("Coordinates", coordId, usage, cityIds);
         }
         repo.deleteById(coordId);
+        ws.sendChange("Coordinates", ChangeAction.DELETED, coordId, null);
     }
 }
 

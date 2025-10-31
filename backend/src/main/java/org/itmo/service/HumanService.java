@@ -4,13 +4,12 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import org.itmo.api.*;
-import org.itmo.domain.Coordinates;
 import org.itmo.domain.Human;
+import org.itmo.dto.ChangeAction;
 import org.itmo.dto.HumanDto;
 import org.itmo.repository.CityRepository;
 import org.itmo.repository.HumanRepository;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.jaxb.SpringDataJaxb;
+import org.itmo.websocet.WsEventPublisher;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,15 +22,18 @@ import java.util.stream.Collectors;
 public class HumanService {
     private final HumanRepository humanRepo;
     private final CityRepository cityRepo;
+    private final WsEventPublisher ws;
 
     @PersistenceContext
     private EntityManager em;
 
-    public HumanService(HumanRepository humanRepo, CityRepository cityRepo) {
+    public HumanService(HumanRepository humanRepo,
+                        CityRepository cityRepo,
+                        WsEventPublisher ws) {
         this.humanRepo = humanRepo;
         this.cityRepo = cityRepo;
+        this.ws = ws;
     }
-
 
     @Transactional(readOnly = true)
     public PageDto<HumanDto> page(HumanPageRequest rq,
@@ -47,6 +49,8 @@ public class HumanService {
         humanRepo.flush();
         em.refresh(human);
 
+        ws.sendChange("Human", ChangeAction.CREATED, HumanDto.fromEntity(human).getId(),HumanDto.fromEntity(human));
+
         return HumanDto.fromEntity(human);
     }
 
@@ -56,6 +60,8 @@ public class HumanService {
                 .orElseThrow(() -> new EntityNotFoundException("Human Not Found"));
 
         humanDto.applyToEntity(e);
+
+        ws.sendChange("Human", ChangeAction.UPDATED, HumanDto.fromEntity(e).getId(), HumanDto.fromEntity(e));
 
         return HumanDto.fromEntity(e);
     }
@@ -80,6 +86,7 @@ public class HumanService {
             List<Long> cityIds = cityRepo.findIdsByGovernorId(humanId);
             throw new DeletionBlockedException("Human", humanId, usage, cityIds);
         }
+        ws.sendChange("Human", ChangeAction.DELETED, humanId, null);
         humanRepo.deleteById(humanId);
     }
 }

@@ -9,19 +9,21 @@ public class GovernmentPgEnumConverter implements AttributeConverter<Government,
 
     @Override
     public Object convertToDatabaseColumn(Government attribute) {
-        if (attribute == null) return null;
         try {
             PGobject pg = new PGobject();
             pg.setType("government");
-            pg.setValue(attribute.name());
+
+            pg.setValue(attribute == null ? null : attribute.name());
             return pg;
         } catch (Exception e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException("Cannot convert Government to PGobject", e);
         }
     }
 
     @Override
     public Government convertToEntityAttribute(Object dbData) {
-        return dbData == null ? null : Government.valueOf(dbData.toString());
+        if (dbData == null) return null;
+        String v = dbData.toString();
+        return (v == null || v.isBlank()) ? null : Government.valueOf(v);
     }
 }

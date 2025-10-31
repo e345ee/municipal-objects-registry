@@ -224,4 +224,30 @@ public class CityDto {
         return governorIdSpecified || governorSpecified;
     }
 
+    public static CityDto fromEntity(City c) {
+        CityDto dto = new CityDto();
+        dto.setId(c.getId());
+        dto.setName(c.getName());
+        dto.setCreationDate(c.getCreationDate());
+        dto.setArea(c.getArea());
+        dto.setPopulation(c.getPopulation());
+        dto.setEstablishmentDate(c.getEstablishmentDate());
+        dto.setCapital(c.isCapital());
+        dto.setMetersAboveSeaLevel(c.getMetersAboveSeaLevel());
+        dto.setTelephoneCode(c.getTelephoneCode());
+        dto.setClimate(c.getClimate() != null ? c.getClimate().name() : null);
+        dto.setGovernment(c.getGovernment() != null ? c.getGovernment().name() : null);
+
+        if (c.getCoordinates() != null) {
+            dto.setCoordinatesId(c.getCoordinates().getId());
+            dto.setCoordinates(CoordinatesDto.fromEntity(c.getCoordinates()));
+        }
+
+        if (c.getGovernor() != null) {
+            dto.setGovernorId(c.getGovernor().getId());
+            dto.setGovernor(HumanDto.fromEntity(c.getGovernor()));
+        }
+
+        return dto;
+    }
 }

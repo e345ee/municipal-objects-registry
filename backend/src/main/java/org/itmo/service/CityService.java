@@ -3,19 +3,23 @@ package org.itmo.service;
 import jakarta.persistence.EntityManager;
 import org.itmo.api.*;
 import org.itmo.domain.*;
+import org.itmo.dto.ChangeAction;
 import org.itmo.dto.CityDto;
 import org.itmo.dto.CoordinatesDto;
 import org.itmo.dto.HumanDto;
 import org.itmo.repository.CityRepository;
 import org.itmo.repository.CoordinatesRepository;
 import org.itmo.repository.HumanRepository;
+import org.itmo.websocet.WsEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -26,17 +30,20 @@ public class CityService {
     private final CoordinatesRepository coordsRepo;
     private final HumanRepository humanRepo;
     private final EntityManager em;
+    private final WsEventPublisher ws;
 
     public CityService(
             CityRepository cityRepo,
             CoordinatesRepository coordsRepo,
             HumanRepository humanRepo,
-            EntityManager em
+            EntityManager em,
+            WsEventPublisher ws
     ) {
         this.cityRepo = cityRepo;
         this.coordsRepo = coordsRepo;
         this.humanRepo = humanRepo;
         this.em = em;
+        this.ws = ws;
     }
 
     @Transactional(readOnly = true)
@@ -44,63 +51,78 @@ public class CityService {
 
         Specification<City> spec = CitySpecifications.byRequest(rq);
 
+        Sort sort = resolveSort(rq);
 
-        String sortBy = rq.getSortBy();
-        String dir    = rq.getDir();
-        boolean asc   = !"desc".equalsIgnoreCase(dir);
-
-        if (sortBy != null && !sortBy.isBlank()) {
-            Pageable pageableNoSort = PageRequest.of(rq.getPage(), rq.getSize());
-
-            Page<City> page;
-            switch (sortBy) {
-                case "id":
-                    page = asc
-                            ? cityRepo.findAllByOrderByIdAsc(pageableNoSort)
-                            : cityRepo.findAllByOrderByIdDesc(pageableNoSort);
-                    break;
-
-                case "coordinatesId":
-                    page = asc
-                            ? cityRepo.findAllOrderByCoordinatesIdAsc(pageableNoSort)
-                            : cityRepo.findAllOrderByCoordinatesIdDesc(pageableNoSort);
-                    break;
-
-                case "governorId":
-                    page = asc
-                            ? cityRepo.findAllOrderByGovernorIdAsc(pageableNoSort)
-                            : cityRepo.findAllOrderByGovernorIdDesc(pageableNoSort);
-                    break;
-
-                case "coordinatesX":
-                    page = asc
-                            ? cityRepo.findAllOrderByCoordinatesXAsc(pageableNoSort)
-                            : cityRepo.findAllOrderByCoordinatesXDesc(pageableNoSort);
-                    break;
-
-                case "coordinatesY":
-                    page = asc
-                            ? cityRepo.findAllOrderByCoordinatesYAsc(pageableNoSort)
-                            : cityRepo.findAllOrderByCoordinatesYDesc(pageableNoSort);
-                    break;
-
-                case "governorHeight":
-                    page = asc
-                            ? cityRepo.findAllOrderByGovernorHeightAsc(pageableNoSort)
-                            : cityRepo.findAllOrderByGovernorHeightDesc(pageableNoSort);
-                    break;
-
-                default:
-                    Pageable pageable = PageableUtil.toPageable(rq);
-                    page = cityRepo.findAll(spec, pageable);
-            }
-
-            return PageDto.fromPage(page.map(this::toDto));
+        boolean hasIdOrder = sort.stream().anyMatch(o -> "id".equals(o.getProperty()));
+        if (!hasIdOrder) {
+            sort = sort.and(Sort.by("id").ascending());
         }
 
-        Pageable pageable = PageableUtil.toPageable(rq);
-        Page<City> page = cityRepo.findAll(spec, pageable);
-        return PageDto.fromPage(page.map(this::toDto));
+        int page = rq.getPage() != null ? rq.getPage() : 0;
+        int size = rq.getSize() != null ? rq.getSize() : 20;
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<City> p = cityRepo.findAll(spec, pageable);
+
+        return PageDto.fromPage(p.map(this::toDto));
+    }
+
+
+    private Sort resolveSort(CityPageRequest rq) {
+
+        List<String> sortParams = rq.getSort();
+        if (sortParams != null && !sortParams.isEmpty() && (rq.getSortBy() == null || rq.getSortBy().isBlank())) {
+            List<Sort.Order> orders = new ArrayList<>();
+            for (String s : sortParams) {
+                if (s == null || s.isBlank()) continue;
+                String[] parts = s.split(",", 2);
+                String field = parts[0].trim();
+                String dir = parts.length > 1 ? parts[1].trim().toLowerCase() : "asc";
+                orders.add("desc".equals(dir) ? Sort.Order.desc(field) : Sort.Order.asc(field));
+            }
+            if (!orders.isEmpty()) return Sort.by(orders);
+        }
+
+
+        String sortBy = rq.getSortBy();
+        String dir = rq.getDir() != null ? rq.getDir().toLowerCase() : "asc";
+
+        String path = mapSortByToPath(sortBy);
+        Sort.Order order = "desc".equals(dir) ? Sort.Order.desc(path) : Sort.Order.asc(path);
+
+
+        order = "desc".equals(dir) ? order.nullsFirst() : order.nullsLast();
+
+        return Sort.by(order);
+    }
+
+
+    private String mapSortByToPath(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) return "id";
+
+        switch (sortBy) {
+
+            case "id": return "id";
+            case "name": return "name";
+            case "creationDate": return "creationDate";
+            case "area": return "area";
+            case "population": return "population";
+            case "establishmentDate": return "establishmentDate";
+            case "capital": return "capital";
+            case "metersAboveSeaLevel": return "metersAboveSeaLevel";
+            case "telephoneCode": return "telephoneCode";
+            case "climate": return "climate";
+            case "government": return "government";
+
+
+            case "coordinatesId": return "coordinates.id";
+            case "coordinatesX":  return "coordinates.x";
+            case "coordinatesY":  return "coordinates.y";
+            case "governorId":    return "governor.id";
+            case "governorHeight":return "governor.height";
+
+            default: return sortBy;
+        }
     }
 
     @Transactional
@@ -112,6 +134,9 @@ public class CityService {
             throw new IllegalArgumentException("Provide either governorId OR governor, not both.");
         }
 
+        boolean createdNewCoords = false;
+        boolean createdNewGovernor = false;
+
         City e = new City();
 
         e.setName(dto.getName());
@@ -122,13 +147,16 @@ public class CityService {
         e.setMetersAboveSeaLevel(dto.getMetersAboveSeaLevel());
         e.setTelephoneCode(dto.getTelephoneCode());
         e.setClimate(Climate.valueOf(dto.getClimate()));
-        e.setGovernment(Government.valueOf(dto.getGovernment()));
+
+        e.setGovernment(parseEnumOrNull(Government.class, dto.getGovernment()));
 
         Coordinates coords = (dto.getCoordinatesId() != null)
                 ? coordsRepo.findById(dto.getCoordinatesId())
                 .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()))
                 : coordsRepo.save(dto.getCoordinates().toNewEntity());
         e.setCoordinates(coords);
+        createdNewCoords = true;
+        createdNewCoords = (dto.getCoordinatesId() == null);
 
         if (dto.getGovernorId() != null) {
             Human gov = humanRepo.findById(dto.getGovernorId())
@@ -136,6 +164,7 @@ public class CityService {
             e.setGovernor(gov);
         } else if (dto.getGovernor() != null) {
             e.setGovernor(humanRepo.save(dto.getGovernor().toNewEntity()));
+            createdNewGovernor = true;
         } else {
             e.setGovernor(null);
         }
@@ -145,13 +174,32 @@ public class CityService {
         cityRepo.flush();
         em.refresh(e);
 
+        if (createdNewCoords) {
+            ws.sendChange("Coordinates", ChangeAction.CREATED, e.getCoordinates().getId(),
+                    CoordinatesDto.fromEntity(e.getCoordinates()));
+        }
+        if (createdNewGovernor) {
+            ws.sendChange("Human", ChangeAction.CREATED, e.getGovernor().getId(),
+                    HumanDto.fromEntity(e.getGovernor()));
+        }
+
+        ws.sendChange("City", ChangeAction.CREATED, toDto(e).getId(), toDto(e));
+
         return toDto(e);
+    }
+
+    private static <E extends Enum<E>> E parseEnumOrNull(Class<E> type, String v) {
+        if (v == null || v.isBlank()) return null;
+        return Enum.valueOf(type, v);
     }
 
     @Transactional
     public CityDto update(Long id, CityDto dto) {
         City e = cityRepo.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
+
+        boolean createdNewCoords = false;
+        boolean createdNewGovernor = false;
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
@@ -175,6 +223,7 @@ public class CityService {
                     .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()))
                     : coordsRepo.save(dto.getCoordinates().toNewEntity());
             e.setCoordinates(coords);
+            createdNewCoords = true;
         }
         if (dto.isGovernorSpecified()) {
             if (dto.getGovernorId() != null && dto.getGovernor() != null) {
@@ -187,12 +236,24 @@ public class CityService {
                 );
             } else if (dto.getGovernor() != null) {
                 e.setGovernor(humanRepo.save(dto.getGovernor().toNewEntity()));
+                createdNewGovernor = true;
             } else {
                 e.setGovernor(null);
             }
         }
 
+        if (createdNewCoords && e.getCoordinates() != null) {
+            ws.sendChange("Coordinates", ChangeAction.UPDATED, e.getCoordinates().getId(),
+                    CoordinatesDto.fromEntity(e.getCoordinates()));
+        }
+        if (createdNewGovernor && e.getGovernor() != null) {
+            ws.sendChange("Human", ChangeAction.UPDATED, e.getGovernor().getId(),
+                    HumanDto.fromEntity(e.getGovernor()));
+        }
+
         e = cityRepo.save(e);
+
+        ws.sendChange("City", ChangeAction.UPDATED, toDto(e).getId(), toDto(e));
 
         return toDto(e);
     }
@@ -227,14 +288,16 @@ public class CityService {
             long usage = cityRepo.countByGovernor_Id(governor.getId());
             if (usage == 0) {
                 humanRepo.deleteById(governor.getId());
+                ws.sendChange("Human", ChangeAction.DELETED, governor.getId(), null);
             }
         }
         if (deleteCoordinatesIfOrphan && coords != null) {
             long usage = cityRepo.countByCoordinates_Id(coords.getId());
             if (usage == 0) {
                 coordsRepo.deleteById(coords.getId());
+                ws.sendChange("Coordinates", ChangeAction.DELETED, coords.getId(), null);
             }
-        }
+        } ws.sendChange("City", ChangeAction.DELETED, id, null);
     }
 
     private CityDto toDto(City e) {

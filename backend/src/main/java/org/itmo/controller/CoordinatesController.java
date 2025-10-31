@@ -44,6 +44,7 @@ public class CoordinatesController {
         return service.update(id, dto);
     }
 
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         service.delete(id);
