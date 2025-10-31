@@ -2,6 +2,8 @@ import React from "react";
 import { CitiesApi } from "../api/cities";
 import { createStomp } from "../realtime/bus";
 import CityCreateDialog from "./CityCreateDialog";
+import CityDeleteDialog from "./CityDeleteDialog";
+import CityEditDialog from "./CityEditDialog";
 
 
 const ALL_SORT_FIELDS = new Set([
@@ -44,6 +46,10 @@ export default function CitiesPage() {
 
 
   const [openCreate, setOpenCreate] = React.useState(false);
+  const [delOpen, setDelOpen] = React.useState(false);
+  const [delCity, setDelCity] = React.useState(null);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editCity, setEditCity] = React.useState(null);
 
   const fetchPage = React.useCallback(async () => {
     setLoading(true);
@@ -84,6 +90,7 @@ export default function CitiesPage() {
   const from = totalElements === 0 ? 0 : page * size + 1;
   const to   = Math.min((page + 1) * size, totalElements);
 
+
   const validators = {
     area: (s) => isInt(s, {min: 0}) || "Area: целое число ≥ 0",
     population: (s) => isInt(s, {min: 0}) || "Population: целое число ≥ 0",
@@ -96,7 +103,7 @@ export default function CitiesPage() {
     capital: (s) => (!s || s === "true" || s === "false") || "Capital: true/false",
     creationDate: (s) => (!s || isIsoDateStrict(s)) || "creationDate: YYYY-MM-DD",
     establishmentDate: (s) => (!s || isIsoDateStrict(s)) || "establishmentDate: YYYY-MM-DD",
-    name: (_) => true,
+    name: (_) => true, 
     governorIdIsNull: (s) => (!s || s==="true" || s==="false") || "Значение true/false",
   };
 
@@ -104,13 +111,14 @@ export default function CitiesPage() {
     const errs = {};
     for (const [k, v] of Object.entries(d)) {
       const s = String(v ?? "").trim();
-      if (!s) continue; // пустое — ок
+      if (!сheckNotEmpty(s)) continue; // пустое — ок
       const vfn = validators[k];
       if (vfn) {
         const ok = vfn(s);
         if (ok !== true) errs[k] = ok;
       }
     }
+
     if (String(d.governorId ?? "").trim() && String(d.governorIdIsNull ?? "") === "true") {
       errs.governorId = "Нельзя вместе с 'Governor is NULL? = Да'";
       errs.governorIdIsNull = "Нельзя вместе с 'Governor ID'";
@@ -170,13 +178,31 @@ export default function CitiesPage() {
 
   const hasErrors = Object.keys(errors).length > 0;
 
+
+  const askDelete = (city) => {
+    setDelCity(city);
+    setDelOpen(true);
+  };
+  const onDeleted = () => {
+    fetchPage();
+  };
+
+
+  const askEdit = (city) => {
+    setEditCity(city);
+    setEditOpen(true);
+  };
+  const onUpdated = () => {
+    fetchPage();
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 1600, margin: "0 auto" }}>
       <header style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <h2 style={{ margin: 0 }}>Города</h2>
         <button style={btn} onClick={()=>setOpenCreate(true)}>+ Создать город</button>
 
-        <details style={filtersWrap} open>
+        <details style={filtersWrap} closed>
           <summary style={{ cursor: "pointer", userSelect: "none" }}>Фильтры</summary>
 
           <div style={filtersGrid}>
@@ -350,8 +376,8 @@ export default function CitiesPage() {
 
                   <TD right>
                     <div style={actionsWrap}>
-                      <button style={btn}>Изменить</button>
-                      <button style={btnDanger}>Удалить</button>
+                      <button style={btn} onClick={()=>askEdit(c)}>Изменить</button>
+                      <button style={btnDanger} onClick={()=>askDelete(c)}>Удалить</button>
                     </div>
                   </TD>
                 </tr>
@@ -375,8 +401,26 @@ export default function CitiesPage() {
         onClose={()=>setOpenCreate(false)}
         onCreated={()=>{ fetchPage(); }}
       />
+
+      <CityDeleteDialog
+        open={delOpen}
+        onClose={()=>{ setDelOpen(false); setDelCity(null); }}
+        city={delCity}
+        onDeleted={onDeleted}
+      />
+
+      <CityEditDialog
+        open={editOpen}
+        onClose={()=>{ setEditOpen(false); setEditCity(null); }}
+        city={editCity}
+        onUpdated={onUpdated}
+      />
     </div>
   );
+}
+
+function сheckNotEmpty(s) { 
+  return !(s === "" || s === null || s === undefined);
 }
 
 function isInt(s, {min = -Infinity, max = Infinity} = {}) {
@@ -421,11 +465,13 @@ function toQueryFilters(f) {
   const isEmpty = (v) => v === null || v === undefined || String(v).trim() === "";
   for (const [k, v] of Object.entries(f)) {
     if (isEmpty(v)) continue;
+  
     if ((k === "creationDate" || k === "establishmentDate") && !isIsoDateStrict(v)) continue;
     out[k] = String(v).trim();
   }
   return out;
 }
+
 
 const Input = ({ value, onChange, placeholder, error }) => (
   <div style={{ display: "grid", gap: 4 }}>
@@ -474,7 +520,6 @@ const TH = ({ children, w, right, onClick }) => (
 const TD = ({ children, right }) => (
   <td style={{ ...td, textAlign: right ? "right" : "left" }}>{children}</td>
 );
-
 
 const table = { width: "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed", fontSize: 14 };
 const th = { position: "sticky", top: 0, background: "#fff", zIndex: 1, textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: "8px 10px", whiteSpace: "nowrap" };

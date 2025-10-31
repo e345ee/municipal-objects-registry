@@ -198,64 +198,107 @@ public class CityService {
         City e = cityRepo.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
 
+        boolean updatedExistingCoords = false;
         boolean createdNewCoords = false;
+        boolean updatedExistingGovernor = false;
         boolean createdNewGovernor = false;
+
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
         e.setPopulation(dto.getPopulation());
-        e.setCapital(dto.isCapital());
+        e.setCapital(Boolean.TRUE.equals(dto.getCapital()));
         e.setMetersAboveSeaLevel(dto.getMetersAboveSeaLevel());
         e.setTelephoneCode(dto.getTelephoneCode());
         e.setClimate(Climate.valueOf(dto.getClimate()));
-        e.setGovernment(Government.valueOf(dto.getGovernment()));
+
+
+        if (dto.getGovernment() == null || dto.getGovernment().isBlank()) {
+            e.setGovernment(null);
+        } else {
+            e.setGovernment(Government.valueOf(dto.getGovernment()));
+        }
+
         e.setEstablishmentDate(dto.getEstablishmentDate());
 
+
         if (dto.isCoordinatesSpecified()) {
-            if (dto.getCoordinatesId() == null && dto.getCoordinates() == null) {
-                throw new IllegalArgumentException("Coordinates must be provided: either coordinatesId OR coordinates.");
-            }
+
             if (dto.getCoordinatesId() != null && dto.getCoordinates() != null) {
                 throw new IllegalArgumentException("Provide either coordinatesId OR coordinates, not both.");
             }
-            Coordinates coords = (dto.getCoordinatesId() != null)
-                    ? coordsRepo.findById(dto.getCoordinatesId())
-                    .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()))
-                    : coordsRepo.save(dto.getCoordinates().toNewEntity());
-            e.setCoordinates(coords);
-            createdNewCoords = true;
+
+            if (dto.getCoordinatesId() != null) {
+
+                Coordinates coords = coordsRepo.findById(dto.getCoordinatesId())
+                        .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
+                e.setCoordinates(coords);
+
+            } else if (dto.getCoordinates() != null) {
+
+                if (e.getCoordinates() != null) {
+                    dto.getCoordinates().applyToEntity(e.getCoordinates());
+                    coordsRepo.save(e.getCoordinates());
+                    updatedExistingCoords = true;
+                } else {
+                    Coordinates created = coordsRepo.save(dto.getCoordinates().toNewEntity());
+                    e.setCoordinates(created);
+                    createdNewCoords = true;
+                }
+            } else {
+                throw new IllegalArgumentException("Coordinates must be provided: either coordinatesId OR coordinates.");
+            }
         }
+
         if (dto.isGovernorSpecified()) {
             if (dto.getGovernorId() != null && dto.getGovernor() != null) {
                 throw new IllegalArgumentException("Provide either governorId OR governor, not both.");
             }
+
             if (dto.getGovernorId() != null) {
-                e.setGovernor(
-                        humanRepo.findById(dto.getGovernorId())
-                                .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()))
-                );
+
+                Human gov = humanRepo.findById(dto.getGovernorId())
+                        .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()));
+                e.setGovernor(gov);
             } else if (dto.getGovernor() != null) {
-                e.setGovernor(humanRepo.save(dto.getGovernor().toNewEntity()));
-                createdNewGovernor = true;
+                if (e.getGovernor() != null) {
+                    dto.getGovernor().applyToEntity(e.getGovernor());
+                    humanRepo.save(e.getGovernor());
+                    updatedExistingGovernor = true;
+                } else {
+                    Human created = humanRepo.save(dto.getGovernor().toNewEntity());
+                    e.setGovernor(created);
+                    createdNewGovernor = true;
+                }
             } else {
                 e.setGovernor(null);
             }
         }
 
-        if (createdNewCoords && e.getCoordinates() != null) {
+        e = cityRepo.save(e);
+
+
+        if (updatedExistingCoords && e.getCoordinates() != null) {
             ws.sendChange("Coordinates", ChangeAction.UPDATED, e.getCoordinates().getId(),
                     CoordinatesDto.fromEntity(e.getCoordinates()));
         }
-        if (createdNewGovernor && e.getGovernor() != null) {
+        if (createdNewCoords && e.getCoordinates() != null) {
+            ws.sendChange("Coordinates", ChangeAction.CREATED, e.getCoordinates().getId(),
+                    CoordinatesDto.fromEntity(e.getCoordinates()));
+        }
+
+        if (updatedExistingGovernor && e.getGovernor() != null) {
             ws.sendChange("Human", ChangeAction.UPDATED, e.getGovernor().getId(),
                     HumanDto.fromEntity(e.getGovernor()));
         }
+        if (createdNewGovernor && e.getGovernor() != null) {
+            ws.sendChange("Human", ChangeAction.CREATED, e.getGovernor().getId(),
+                    HumanDto.fromEntity(e.getGovernor()));
+        }
 
-        e = cityRepo.save(e);
-
-        ws.sendChange("City", ChangeAction.UPDATED, toDto(e).getId(), toDto(e));
-
-        return toDto(e);
+        CityDto out = toDto(e);
+        ws.sendChange("City", ChangeAction.UPDATED, out.getId(), out);
+        return out;
     }
 
     @Transactional(readOnly = true)
