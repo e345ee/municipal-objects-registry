@@ -28,10 +28,6 @@ public class CoordinatesController {
         return service.page(rq, pageable);
     }
 
-    @GetMapping("/all")
-    public List<CoordinatesDto> list() {
-        return service.list();
-    }
     @PostMapping
     public CoordinatesDto create(@Valid @RequestBody CoordinatesDto dto) {
         return service.create(dto);

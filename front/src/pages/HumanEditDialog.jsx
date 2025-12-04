@@ -5,15 +5,54 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HumansApi } from "../api/humans";
 
+const FLOAT_MAX = 3.4028235e38; 
 
 const schema = z.object({
   height: z.preprocess(
-    (v) => (v === "" || v === null ? undefined : Number(v)),
+    (v) => {
+      if (v === "" || v === null || v === undefined) return undefined;
+
+      if (typeof v === "string") {
+        const trimmed = v.trim();
+        const lower = trimmed.toLowerCase();
+
+        if (
+          lower === "infinity" ||
+          lower === "+infinity" ||
+          lower === "-infinity" ||
+          lower === "inf" ||
+          lower === "+inf" ||
+          lower === "-inf" ||
+          lower === "nan"
+        ) {
+          return NaN;
+        }
+
+        const floatLike = /^[+-]?(?:\d+\.?\d*|\d*\.?\d+)(?:[eE][+-]?\d+)?$/;
+        if (!floatLike.test(trimmed)) {
+          return NaN;
+        }
+
+        return Number(trimmed);
+      }
+
+      if (typeof v !== "number") {
+        return NaN;
+      }
+
+      return v;
+    },
     z
-      .number({ invalid_type_error: "Введите число" })
-      .finite("Недопустимое число")       
+      .number({
+        required_error: "Рост обязателен",
+        invalid_type_error: "Введите число",
+      })
+      .refine(Number.isFinite, "Недопустимое число") 
       .positive("Рост должен быть > 0")
-      .max(10000, "Рост не может быть > 10000")
+      .refine(
+        (n) => Math.abs(n) <= FLOAT_MAX,
+        "Рост не может выходить за пределы float"
+      )
   ),
 });
 
@@ -27,7 +66,6 @@ export default function HumanEditDialog({ open, onClose, human, onUpdated }) {
   const { errors, isValid, isSubmitting } = formState;
   const heightVal = watch("height");
 
-
   React.useEffect(() => {
     if (open && human) {
       reset({ height: human.height ?? "" });
@@ -36,7 +74,7 @@ export default function HumanEditDialog({ open, onClose, human, onUpdated }) {
 
   const onSubmit = async (values) => {
     try {
-      await HumansApi.update(human.id, { height: values.height }); 
+      await HumansApi.update(human.id, { height: values.height });
       onUpdated?.();
       onClose();
     } catch (e) {
@@ -45,14 +83,24 @@ export default function HumanEditDialog({ open, onClose, human, onUpdated }) {
     }
   };
 
-
   const blockExpAndSigns = (e) => {
     if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
   };
 
+  const handlePaste = (e) => {
+    const text = e.clipboardData.getData("text").trim();
+    const floatLike = /^[+-]?(?:\d+\.?\d*|\d*\.?\d+)(?:[eE][+-]?\d+)?$/;
+
+    if (!floatLike.test(text)) {
+      e.preventDefault();
+    }
+  };
+
   const footer = (
     <>
-      <button onClick={onClose} disabled={isSubmitting}>Отмена</button>
+      <button onClick={onClose} disabled={isSubmitting}>
+        Отмена
+      </button>
       <button
         onClick={handleSubmit(onSubmit)}
         disabled={!isValid || isSubmitting}
@@ -62,6 +110,8 @@ export default function HumanEditDialog({ open, onClose, human, onUpdated }) {
       </button>
     </>
   );
+
+  const numHeight = Number(heightVal);
 
   return (
     <Modal
@@ -77,19 +127,22 @@ export default function HumanEditDialog({ open, onClose, human, onUpdated }) {
             type="number"
             step="any"
             min={0.0001}
-            max={10000}
             inputMode="decimal"
             onKeyDown={blockExpAndSigns}
-            placeholder="например, 180"
+            onPaste={handlePaste}
+            onWheel={(e) => e.currentTarget.blur()}
+            placeholder="например, 1.80"
             {...register("height")}
             style={input(errors.height)}
           />
           {errors.height && <div style={err}>{errors.height.message}</div>}
         </label>
 
-        {heightVal !== "" && Number(heightVal) <= 0 && (
-          <div style={hint}>Рост должен быть больше 0</div>
-        )}
+        {heightVal !== "" &&
+          Number.isFinite(numHeight) &&
+          numHeight <= 0 && (
+            <div style={hint}>Рост должен быть больше 0</div>
+          )}
       </div>
     </Modal>
   );
@@ -103,4 +156,10 @@ const input = (error) => ({
   outline: "none",
 });
 const err = { color: "#b91c1c", fontSize: 12 };
-const hint = { color: "#92400e", background: "#fef3c7", padding: "6px 8px", borderRadius: 6, fontSize: 12 };
+const hint = {
+  color: "#92400e",
+  background: "#fef3c7",
+  padding: "6px 8px",
+  borderRadius: 6,
+  fontSize: 12,
+};

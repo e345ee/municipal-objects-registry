@@ -1,11 +1,14 @@
 package ru.itmo.service;
 
-import jakarta.persistence.EntityManager;
 import ru.itmo.page.CityPageRequest;
 import ru.itmo.specification.CitySpecifications;
 import ru.itmo.page.PageDto;
 import ru.itmo.exeption.RelatedEntityNotFound;
-import ru.itmo.domain.*;
+import ru.itmo.domain.City;
+import ru.itmo.domain.Climate;
+import ru.itmo.domain.Coordinates;
+import ru.itmo.domain.Government;
+import ru.itmo.domain.Human;
 import ru.itmo.websocet.ChangeAction;
 import ru.itmo.dto.CityDto;
 import ru.itmo.dto.CoordinatesDto;
@@ -22,9 +25,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class CityService {
@@ -32,20 +34,17 @@ public class CityService {
     private final CityRepository cityRepo;
     private final CoordinatesRepository coordsRepo;
     private final HumanRepository humanRepo;
-    private final EntityManager em;
     private final WsEventPublisher ws;
 
     public CityService(
             CityRepository cityRepo,
             CoordinatesRepository coordsRepo,
             HumanRepository humanRepo,
-            EntityManager em,
             WsEventPublisher ws
     ) {
         this.cityRepo = cityRepo;
         this.coordsRepo = coordsRepo;
         this.humanRepo = humanRepo;
-        this.em = em;
         this.ws = ws;
     }
 
@@ -70,7 +69,6 @@ public class CityService {
         return PageDto.fromPage(p.map(this::toDto));
     }
 
-
     private Sort resolveSort(CityPageRequest rq) {
 
         List<String> sortParams = rq.getSort();
@@ -86,19 +84,16 @@ public class CityService {
             if (!orders.isEmpty()) return Sort.by(orders);
         }
 
-
         String sortBy = rq.getSortBy();
         String dir = rq.getDir() != null ? rq.getDir().toLowerCase() : "asc";
 
         String path = mapSortByToPath(sortBy);
         Sort.Order order = "desc".equals(dir) ? Sort.Order.desc(path) : Sort.Order.asc(path);
 
-
         order = "desc".equals(dir) ? order.nullsFirst() : order.nullsLast();
 
         return Sort.by(order);
     }
-
 
     private String mapSortByToPath(String sortBy) {
         if (sortBy == null || sortBy.isBlank()) return "id";
@@ -116,7 +111,6 @@ public class CityService {
             case "telephoneCode": return "telephoneCode";
             case "climate": return "climate";
             case "government": return "government";
-
 
             case "coordinatesId": return "coordinates.id";
             case "coordinatesX":  return "coordinates.x";
@@ -150,44 +144,46 @@ public class CityService {
         e.setMetersAboveSeaLevel(dto.getMetersAboveSeaLevel());
         e.setTelephoneCode(dto.getTelephoneCode());
         e.setClimate(Climate.valueOf(dto.getClimate()));
-
         e.setGovernment(parseEnumOrNull(Government.class, dto.getGovernment()));
 
-        Coordinates coords = (dto.getCoordinatesId() != null)
-                ? coordsRepo.findById(dto.getCoordinatesId())
-                .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()))
-                : coordsRepo.save(dto.getCoordinates().toNewEntity());
+        Coordinates coords;
+        if (dto.getCoordinatesId() != null) {
+            coords = coordsRepo.findById(dto.getCoordinatesId())
+                    .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
+        } else {
+            coords = coordsRepo.save(dto.getCoordinates().toNewEntity());
+            createdNewCoords = true;
+        }
         e.setCoordinates(coords);
-        createdNewCoords = (dto.getCoordinatesId() == null);
 
         if (dto.getGovernorId() != null) {
             Human gov = humanRepo.findById(dto.getGovernorId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()));
             e.setGovernor(gov);
         } else if (dto.getGovernor() != null) {
-            e.setGovernor(humanRepo.save(dto.getGovernor().toNewEntity()));
+            Human gov = humanRepo.save(dto.getGovernor().toNewEntity());
+            e.setGovernor(gov);
             createdNewGovernor = true;
         } else {
             e.setGovernor(null);
         }
 
         e = cityRepo.save(e);
-
         cityRepo.flush();
-        em.refresh(e);
 
-        if (createdNewCoords) {
+        if (createdNewCoords && e.getCoordinates() != null) {
             ws.sendChange("Coordinates", ChangeAction.CREATED, e.getCoordinates().getId(),
                     CoordinatesDto.fromEntity(e.getCoordinates()));
         }
-        if (createdNewGovernor) {
+        if (createdNewGovernor && e.getGovernor() != null) {
             ws.sendChange("Human", ChangeAction.CREATED, e.getGovernor().getId(),
                     HumanDto.fromEntity(e.getGovernor()));
         }
 
-        ws.sendChange("City", ChangeAction.CREATED, toDto(e).getId(), toDto(e));
+        CityDto out = toDto(e);
+        ws.sendChange("City", ChangeAction.CREATED, out.getId(), out);
 
-        return toDto(e);
+        return out;
     }
 
     private static <E extends Enum<E>> E parseEnumOrNull(Class<E> type, String v) {
@@ -205,7 +201,6 @@ public class CityService {
         boolean updatedExistingGovernor = false;
         boolean createdNewGovernor = false;
 
-
         e.setName(dto.getName());
         e.setArea(dto.getArea());
         e.setPopulation(dto.getPopulation());
@@ -214,7 +209,6 @@ public class CityService {
         e.setTelephoneCode(dto.getTelephoneCode());
         e.setClimate(Climate.valueOf(dto.getClimate()));
 
-
         if (dto.getGovernment() == null || dto.getGovernment().isBlank()) {
             e.setGovernment(null);
         } else {
@@ -222,7 +216,6 @@ public class CityService {
         }
 
         e.setEstablishmentDate(dto.getEstablishmentDate());
-
 
         if (dto.isCoordinatesSpecified()) {
 
@@ -279,7 +272,6 @@ public class CityService {
 
         e = cityRepo.save(e);
 
-
         if (updatedExistingCoords && e.getCoordinates() != null) {
             ws.sendChange("Coordinates", ChangeAction.UPDATED, e.getCoordinates().getId(),
                     CoordinatesDto.fromEntity(e.getCoordinates()));
@@ -316,33 +308,32 @@ public class CityService {
 
     @Transactional
     public void delete(Long id,
-                           boolean deleteGovernorIfOrphan,
-                           boolean deleteCoordinatesIfOrphan) {
+                       boolean deleteGovernorIfOrphan,
+                       boolean deleteCoordinatesIfOrphan) {
         City city = cityRepo.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
 
         Human governor = city.getGovernor();
         Coordinates coords = city.getCoordinates();
 
-
         cityRepo.delete(city);
         cityRepo.flush();
 
-
         if (deleteGovernorIfOrphan && governor != null) {
-            long usage = cityRepo.countByGovernor_Id(governor.getId());
+            long usage = cityRepo.countByGovernorId(governor.getId());
             if (usage == 0) {
                 humanRepo.deleteById(governor.getId());
                 ws.sendChange("Human", ChangeAction.DELETED, governor.getId(), null);
             }
         }
         if (deleteCoordinatesIfOrphan && coords != null) {
-            long usage = cityRepo.countByCoordinates_Id(coords.getId());
+            long usage = cityRepo.countByCoordinatesId(coords.getId());
             if (usage == 0) {
                 coordsRepo.deleteById(coords.getId());
                 ws.sendChange("Coordinates", ChangeAction.DELETED, coords.getId(), null);
             }
-        } ws.sendChange("City", ChangeAction.DELETED, id, null);
+        }
+        ws.sendChange("City", ChangeAction.DELETED, id, null);
     }
 
     private CityDto toDto(City e) {
@@ -366,5 +357,66 @@ public class CityService {
         return dto;
     }
 
+    @Transactional(readOnly = true)
+    public double averageTelephoneCode() {
+        var codes = cityRepo.findAll().stream()
+                .map(City::getTelephoneCode)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .toArray();
+        if (codes.length == 0) return 0.0d;
+        long sum = 0;
+        for (int c : codes) sum += c;
+        return (double) sum / codes.length;
+    }
 
+    @Transactional(readOnly = true)
+    public List<CityDto> findByNameStartsWith(String prefix) {
+        if (prefix == null) prefix = "";
+        final String p = prefix;
+        return cityRepo.findAll().stream()
+                .filter(c -> c.getName() != null && c.getName().startsWith(p))
+                .map(CityDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Integer> uniqueMetersAboveSeaLevel() {
+        return cityRepo.findAll().stream()
+                .map(City::getMetersAboveSeaLevel)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(() -> new TreeSet<Integer>()))
+                .stream()
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public double distanceToLargestAreaCity(double fromX, double fromY) {
+        Optional<City> maxAreaCity = cityRepo.findAll().stream()
+                .filter(c -> c.getArea() != null)
+                .max(Comparator.comparingInt(City::getArea));
+
+        City city = maxAreaCity.orElseThrow(() -> new NoSuchElementException("Нет городов с заполненным area"));
+        if (city.getCoordinates() == null)
+            throw new NoSuchElementException("У города с max area отсутствуют координаты");
+
+        double dx = city.getCoordinates().getX() - fromX;
+        double dy = city.getCoordinates().getY() - fromY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    @Transactional(readOnly = true)
+    public double distanceFromOriginToOldestCity() {
+        Optional<City> oldest = cityRepo.findAll().stream()
+                .filter(c -> c.getEstablishmentDate() != null)
+                .min(Comparator.comparing(City::getEstablishmentDate));
+
+        City city = oldest.orElseThrow(() -> new NoSuchElementException("Нет городов с establishmentDate"));
+        if (city.getCoordinates() == null)
+            throw new NoSuchElementException("У самого старого города отсутствуют координаты");
+
+        double x = city.getCoordinates().getX();
+        double y = city.getCoordinates().getY();
+        return Math.sqrt(x * x + y * y);
+    }
 }

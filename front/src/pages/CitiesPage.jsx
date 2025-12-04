@@ -5,7 +5,6 @@ import CityCreateDialog from "./CityCreateDialog";
 import CityDeleteDialog from "./CityDeleteDialog";
 import CityEditDialog from "./CityEditDialog";
 
-
 const ALL_SORT_FIELDS = new Set([
   "id", "name", "creationDate", "area", "population",
   "establishmentDate", "capital", "metersAboveSeaLevel",
@@ -13,7 +12,6 @@ const ALL_SORT_FIELDS = new Set([
   "coordinatesId", "coordinatesX", "coordinatesY",
   "governorId", "governorHeight",
 ]);
-
 
 const CLIMATES = ["RAIN_FOREST","HUMIDSUBTROPICAL","TUNDRA"];
 const GOVERNMENTS = ["DEMARCHY","KLEPTOCRACY","CORPORATOCRACY","PLUTOCRACY","THALASSOCRACY"];
@@ -27,7 +25,6 @@ export default function CitiesPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
-
   const [draft, setDraft] = React.useState({
     name: "", climate: "", government: "",
     area: "", population: "", metersAboveSeaLevel: "",
@@ -37,13 +34,10 @@ export default function CitiesPage() {
   });
 
   const [errors, setErrors] = React.useState({});
-
   const [filters, setFilters] = React.useState({});
-
 
   const [sortBy, setSortBy] = React.useState("id");
   const [dir, setDir] = React.useState("asc");
-
 
   const [openCreate, setOpenCreate] = React.useState(false);
   const [delOpen, setDelOpen] = React.useState(false);
@@ -90,7 +84,6 @@ export default function CitiesPage() {
   const from = totalElements === 0 ? 0 : page * size + 1;
   const to   = Math.min((page + 1) * size, totalElements);
 
-
   const validators = {
     area: (s) => isInt(s, {min: 0}) || "Area: целое число ≥ 0",
     population: (s) => isInt(s, {min: 0}) || "Population: целое число ≥ 0",
@@ -103,7 +96,7 @@ export default function CitiesPage() {
     capital: (s) => (!s || s === "true" || s === "false") || "Capital: true/false",
     creationDate: (s) => (!s || isIsoDateStrict(s)) || "creationDate: YYYY-MM-DD",
     establishmentDate: (s) => (!s || isIsoDateStrict(s)) || "establishmentDate: YYYY-MM-DD",
-    name: (_) => true, 
+    name: (_) => true,
     governorIdIsNull: (s) => (!s || s==="true" || s==="false") || "Значение true/false",
   };
 
@@ -111,7 +104,7 @@ export default function CitiesPage() {
     const errs = {};
     for (const [k, v] of Object.entries(d)) {
       const s = String(v ?? "").trim();
-      if (!сheckNotEmpty(s)) continue; // пустое — ок
+      if (!сheckNotEmpty(s)) continue;
       const vfn = validators[k];
       if (vfn) {
         const ok = vfn(s);
@@ -178,7 +171,6 @@ export default function CitiesPage() {
 
   const hasErrors = Object.keys(errors).length > 0;
 
-
   const askDelete = (city) => {
     setDelCity(city);
     setDelOpen(true);
@@ -186,7 +178,6 @@ export default function CitiesPage() {
   const onDeleted = () => {
     fetchPage();
   };
-
 
   const askEdit = (city) => {
     setEditCity(city);
@@ -355,24 +346,24 @@ export default function CitiesPage() {
               const gov = c.governor || {};
               return (
                 <tr key={c.id} style={i % 2 ? trZebra : undefined}>
-                  <TD right>{fmt(c.id)}</TD>
+                  <TD right noEllipsis>{fmt(c.id)}</TD>
                   <TD>{fmt(c.name)}</TD>
                   <TD>{fmt(c.creationDate)}</TD>
-                  <TD right>{fmt(c.area)}</TD>
-                  <TD right>{fmt(c.population)}</TD>
+                  <TD right noEllipsis>{fmt(c.area)}</TD>
+                  <TD right noEllipsis>{fmt(c.population)}</TD>
                   <TD>{fmt(c.establishmentDate)}</TD>
                   <TD>{c.capital ? "Да" : "Нет"}</TD>
-                  <TD right>{fmt(c.metersAboveSeaLevel)}</TD>
-                  <TD right>{fmt(c.telephoneCode)}</TD>
+                  <TD right noEllipsis>{fmt(c.metersAboveSeaLevel)}</TD>
+                  <TD right noEllipsis>{fmt(c.telephoneCode)}</TD>
                   <TD>{fmt(c.climate)}</TD>
                   <TD>{fmt(c.government)}</TD>
 
-                  <TD right>{fmt(c.coordinatesId ?? coords.id)}</TD>
-                  <TD right>{fmt(coords.x)}</TD>
-                  <TD right>{fmt(coords.y)}</TD>
+                  <TD right noEllipsis>{fmt(c.coordinatesId ?? coords.id)}</TD>
+                  <TD right noEllipsis>{fmt(coords.x)}</TD>
+                  <TD right noEllipsis>{fmt(coords.y)}</TD>
 
-                  <TD right>{fmt(c.governorId ?? gov.id)}</TD>
-                  <TD right>{fmt(gov.height)}</TD>
+                  <TD right noEllipsis>{fmt(c.governorId ?? gov.id)}</TD>
+                  <TD right noEllipsis>{fmt(gov.height)}</TD>
 
                   <TD right>
                     <div style={actionsWrap}>
@@ -419,7 +410,7 @@ export default function CitiesPage() {
   );
 }
 
-function сheckNotEmpty(s) { 
+function сheckNotEmpty(s) {
   return !(s === "" || s === null || s === undefined);
 }
 
@@ -446,9 +437,9 @@ function sanitize(field, raw) {
     case "telephoneCode":
     case "coordinatesId":
     case "governorId":
-      return t.replace(/[^\d]/g, ""); 
+      return t.replace(/[^\d]/g, "");
     case "metersAboveSeaLevel":
-      return t.replace(/[^\d-]/g, "").replace(/(?!^)-/g, ""); 
+      return t.replace(/[^\d-]/g, "").replace(/(?!^)-/g, "");
     default:
       return t;
   }
@@ -465,13 +456,12 @@ function toQueryFilters(f) {
   const isEmpty = (v) => v === null || v === undefined || String(v).trim() === "";
   for (const [k, v] of Object.entries(f)) {
     if (isEmpty(v)) continue;
-  
+
     if ((k === "creationDate" || k === "establishmentDate") && !isIsoDateStrict(v)) continue;
     out[k] = String(v).trim();
   }
   return out;
 }
-
 
 const Input = ({ value, onChange, placeholder, error }) => (
   <div style={{ display: "grid", gap: 4 }}>
@@ -511,19 +501,65 @@ const Select = ({ value, onChange, options, error }) => (
 
 const TH = ({ children, w, right, onClick }) => (
   <th
-    style={{ ...th, width: w, textAlign: right ? "right" : "left", cursor: onClick ? "pointer" : "default", userSelect: "none" }}
+    style={{
+      ...th,
+      width: w,
+      textAlign: right ? "right" : "left",
+      cursor: onClick ? "pointer" : "default",
+      userSelect: "none",
+    }}
     onClick={onClick}
   >
     {children}
   </th>
 );
-const TD = ({ children, right }) => (
-  <td style={{ ...td, textAlign: right ? "right" : "left" }}>{children}</td>
+
+const TD = ({ children, right, noEllipsis }) => (
+  <td
+    style={{
+      ...(noEllipsis ? tdNoEllipsis : td),
+      textAlign: right ? "right" : "left",
+    }}
+  >
+    {children}
+  </td>
 );
 
-const table = { width: "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed", fontSize: 14 };
-const th = { position: "sticky", top: 0, background: "#fff", zIndex: 1, textAlign: "left", borderBottom: "1px solid #e5e7eb", padding: "8px 10px", whiteSpace: "nowrap" };
-const td = { borderBottom: "1px solid #f0f2f5", padding: "6px 10px", verticalAlign: "middle", whiteSpace: "nowrap" };
+const table = {
+  width: "100%",
+  borderCollapse: "separate",
+  borderSpacing: 0,
+  fontSize: 14,
+};
+
+const th = {
+  position: "sticky",
+  top: 0,
+  background: "#fff",
+  zIndex: 1,
+  textAlign: "left",
+  borderBottom: "1px solid #e5e7eb",
+  padding: "8px 10px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const td = {
+  borderBottom: "1px solid #f0f2f5",
+  padding: "6px 10px",
+  verticalAlign: "middle",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const tdNoEllipsis = {
+  ...td,
+  overflow: "visible",
+  textOverflow: "clip",
+};
+
 const tdEmpty = { ...td, textAlign: "center", color: "#6b7280" };
 const trZebra = { background: "#fafafa" };
 const actionsWrap = { display: "inline-flex", gap: 6, justifyContent: "flex-end" };

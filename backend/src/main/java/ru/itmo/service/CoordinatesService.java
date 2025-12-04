@@ -10,7 +10,6 @@ import ru.itmo.page.PageDto;
 import ru.itmo.domain.Coordinates;
 import ru.itmo.websocet.ChangeAction;
 import ru.itmo.dto.CoordinatesDto;
-import ru.itmo.repository.CityRepository;
 import ru.itmo.repository.CoordinatesRepository;
 import ru.itmo.websocet.WsEventPublisher;
 import org.springframework.data.domain.Page;
@@ -24,18 +23,12 @@ import java.util.stream.Collectors;
 @Service
 public class CoordinatesService {
 
-    private  final CoordinatesRepository repo;
-    private final CityRepository cityRepo;
+    private final CoordinatesRepository repo;
     private final WsEventPublisher ws;
 
-    @PersistenceContext
-    private EntityManager em;
-
     public CoordinatesService(CoordinatesRepository repo,
-                              CityRepository cityRepo,
                               WsEventPublisher ws) {
         this.repo = repo;
-        this.cityRepo = cityRepo;
         this.ws = ws;
     }
 
@@ -52,13 +45,12 @@ public class CoordinatesService {
         Coordinates coordinates = coordinatesDto.toNewEntity();
 
         coordinates = repo.save(coordinates);
-        repo.flush();
-        em.refresh(coordinates);
 
-        ws.sendChange("Coordinates", ChangeAction.CREATED, CoordinatesDto.fromEntity(coordinates).getId(), CoordinatesDto.fromEntity(coordinates));
-        return CoordinatesDto.fromEntity(coordinates);
+        CoordinatesDto dto = CoordinatesDto.fromEntity(coordinates);
+        ws.sendChange("Coordinates", ChangeAction.CREATED, dto.getId(), dto);
+
+        return dto;
     }
-
 
     @Transactional
     public CoordinatesDto update(Long id, CoordinatesDto dto) {
@@ -67,20 +59,26 @@ public class CoordinatesService {
 
         dto.applyToEntity(e);
 
-        ws.sendChange("Coordinates", ChangeAction.UPDATED, CoordinatesDto.fromEntity(e).getId(), CoordinatesDto.fromEntity(e));
+        CoordinatesDto updated = CoordinatesDto.fromEntity(e);
+        ws.sendChange("Coordinates", ChangeAction.UPDATED, updated.getId(), updated);
 
-        return CoordinatesDto.fromEntity(e);
+        return updated;
     }
 
     @Transactional(readOnly = true)
     public CoordinatesDto get(Long id) {
-        return CoordinatesDto.fromEntity(repo.findById(id).orElseThrow(() -> new EntityNotFoundException("Coordinates с id=" + id + " не найден")));
+        return CoordinatesDto.fromEntity(
+                repo.findById(id)
+                        .orElseThrow(() -> new EntityNotFoundException("Coordinates с id=" + id + " не найден"))
+        );
     }
 
-
     @Transactional(readOnly = true)
-    public List<CoordinatesDto> list(){
-        return repo.findAll().stream().map(CoordinatesDto::fromEntity).collect(Collectors.toList());
+    public List<CoordinatesDto> list() {
+        return repo.findAll()
+                .stream()
+                .map(CoordinatesDto::fromEntity)
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -88,13 +86,14 @@ public class CoordinatesService {
         if (!repo.existsById(coordId)) {
             throw new NoSuchElementException("Coordinates id=" + coordId + " не найдены");
         }
-        long usage = cityRepo.countByCoordinates_Id(coordId);
+
+        long usage = repo.countCityUsageByCoordinatesId(coordId);
         if (usage > 0) {
-            List<Long> cityIds = cityRepo.findIdsByCoordinatesId(coordId);
+            List<Long> cityIds = repo.findCityIdsByCoordinatesId(coordId);
             throw new DeletionBlockedException("Coordinates", coordId, usage, cityIds);
         }
+
         repo.deleteById(coordId);
         ws.sendChange("Coordinates", ChangeAction.DELETED, coordId, null);
     }
 }
-

@@ -3,6 +3,7 @@ package ru.itmo.domain;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import org.postgresql.util.PGobject;
+import ru.itmo.domain.Climate;
 
 @Converter(autoApply = true)
 public class ClimatePgEnumConverter implements AttributeConverter<Climate, Object> {

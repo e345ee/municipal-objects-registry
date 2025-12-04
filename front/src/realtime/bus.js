@@ -1,7 +1,7 @@
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 
-const WS_BASE = process.env.REACT_APP_WS_BASE || "http://localhost:8080/city-api/ws";
+const WS_BASE = process.env.REACT_APP_WS_BASE || "/ws";
 
 
 export function createStomp(onMessage, topics = ["/topic/cities"]) {

@@ -27,9 +27,9 @@ public class JpaConfig {
     @Bean
     public DataSource dataSource() {
         HikariDataSource ds = new HikariDataSource();
-        ds.setJdbcUrl("jdbc:postgresql://localhost:5432/postgres");
-        ds.setUsername("postgres");
-        ds.setPassword("AVVx@0589");
+        ds.setJdbcUrl("jdbc:postgresql://pg:5432/studs");
+        ds.setUsername("s368748");
+        ds.setPassword("TtSXRLK86yz5ENVZ");
         return ds;
     }
 

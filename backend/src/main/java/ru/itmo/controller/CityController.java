@@ -33,11 +33,6 @@ public class CityController {
         return service.page(rq);
     }
 
-    @GetMapping("/all")
-    public List<CityDto> list() {
-        return service.list();
-    }
-
     @GetMapping("/{id}")
     public CityDto get(@PathVariable Long id) { return service.get(id); }
 
@@ -56,4 +51,35 @@ public class CityController {
         service.delete(id, deleteGovernorIfOrphan, deleteCoordinatesIfOrphan);
         return org.springframework.http.ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/avg-telephone-code")
+    public double averageTelephoneCode() {
+        return service.averageTelephoneCode();
+    }
+
+
+    @GetMapping("/names-starting")
+    public List<CityDto> namesStartingWith(@RequestParam(name = "prefix") String prefix) {
+        return service.findByNameStartsWith(prefix);
+    }
+
+
+    @GetMapping("/meters-above-sea-level/unique")
+    public List<Integer> uniqueMetersAboveSeaLevel() {
+        return service.uniqueMetersAboveSeaLevel();
+    }
+
+
+    @GetMapping("/distance-to-largest")
+    public double distanceToLargest(@RequestParam(name = "x") double x,
+                                    @RequestParam(name = "y") double y) {
+        return service.distanceToLargestAreaCity(x, y);
+    }
+
+
+    @GetMapping("/distance-from-origin-to-oldest")
+    public double distanceFromOriginToOldest() {
+        return service.distanceFromOriginToOldestCity();
+    }
+
 }

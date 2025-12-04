@@ -27,10 +27,6 @@ public class HumanController {
         return service.page(rq, pageable);
     }
 
-    @GetMapping("/all")
-    public List<HumanDto> list() {
-        return service.list();
-    }
 
     @PostMapping
     public HumanDto create(@Valid @RequestBody HumanDto dto) {

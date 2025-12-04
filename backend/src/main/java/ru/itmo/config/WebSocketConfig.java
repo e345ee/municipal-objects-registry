@@ -15,10 +15,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws")
 
                 .setAllowedOriginPatterns(
-                        "http://localhost:3000",
-                        "http://127.0.0.1:3000",
-                        "https://localhost:3000",
-                        "https://127.0.0.1:3000"
+                        "http://localhost:8586",
+                        "http://127.0.0.1:8586",
+                        "https://localhost:8586",
+                        "https://127.0.0.1:8586"
                 )
                 .withSockJS()
                 .setSessionCookieNeeded(false);

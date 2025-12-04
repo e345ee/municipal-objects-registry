@@ -3,31 +3,31 @@ import api from "./client";
 
 export const CitiesAnalyticsApi = {
   averageTelephoneCode: async () => {
-    const { data } = await api.get("/api/cities/analytics/avg-telephone-code");
+    const { data } = await api.get("/api/cities/avg-telephone-code");
     return data; 
   },
 
   namesStartingWith: async (prefix) => {
-    const { data } = await api.get("/api/cities/analytics/names-starting", {
+    const { data } = await api.get("/api/cities/names-starting", {
       params: { prefix },
     });
     return data; 
   },
 
   uniqueMetersAboveSeaLevel: async () => {
-    const { data } = await api.get("/api/cities/analytics/meters-above-sea-level/unique");
+    const { data } = await api.get("/api/cities/meters-above-sea-level/unique");
     return data; 
   },
 
   distanceToLargest: async (x, y) => {
-    const { data } = await api.get("/api/cities/analytics/distance-to-largest", {
+    const { data } = await api.get("/api/cities/distance-to-largest", {
       params: { x, y },
     });
     return data; 
   },
 
   distanceFromOriginToOldest: async () => {
-    const { data } = await api.get("/api/cities/analytics/distance-from-origin-to-oldest");
+    const { data } = await api.get("/api/cities/distance-from-origin-to-oldest");
     return data; 
   },
 };

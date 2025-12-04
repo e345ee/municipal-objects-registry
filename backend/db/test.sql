@@ -6,9 +6,9 @@ DELETE FROM human;
 DELETE FROM coordinates;
 
 
-INSERT INTO coordinates (x, y) VALUES (100.0, 50.0);   -- id=1
-INSERT INTO coordinates (x, y) VALUES (200.0, 20.0);   -- id=2
-INSERT INTO coordinates (x, y) VALUES (300.0, 10.0);   -- id=3
+INSERT INTO coordinates (x, y) VALUES (100.0, 50.0);
+INSERT INTO coordinates (x, y) VALUES (200.0, 20.0);
+INSERT INTO coordinates (x, y) VALUES (300.0, 10.0);
 
 
 INSERT INTO human (height) VALUES (180.5);

@@ -64,8 +64,8 @@ export default function FeaturesPage() {
   };
 
 
-  const NUM_RE = /^-?\d{1,7}(\.\d{1,6})?$/; // 7 до точки, 6 после
-  const sanitize = (str) => str.replace(/[eE]/g, ""); // уберём экспоненту
+  const NUM_RE = /^-?\d{1,7}(\.\d{1,6})?$/; 
+  const sanitize = (str) => str.replace(/[eE]/g, ""); 
 
   const onXChange = (v) => {
     const val = sanitize(v);

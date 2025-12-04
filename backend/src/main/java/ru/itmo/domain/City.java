@@ -135,6 +135,7 @@ public class City {
     }
 
     public Climate getClimate() { return climate; }
+
     public void setClimate(Climate climate) {
         if (climate == null) {
             throw new IllegalArgumentException("Climate must be specified");

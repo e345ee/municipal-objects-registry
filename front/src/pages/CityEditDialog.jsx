@@ -1,473 +1,1208 @@
 import React from "react";
 import Modal from "../components/Modal";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { CitiesApi } from "../api/cities";
 import { CoordinatesApi } from "../api/coordinates";
 import { HumansApi } from "../api/humans";
 
-const CLIMATES = ["RAIN_FOREST","HUMIDSUBTROPICAL","TUNDRA"];
-const GOVERNMENTS = ["DEMARCHY","KLEPTOCRACY","CORPORATOCRACY","PLUTOCRACY","THALASSOCRACY"];
+const CLIMATES = ["RAIN_FOREST", "HUMIDSUBTROPICAL", "TUNDRA"];
+const GOVERNMENTS = [
+  "DEMARCHY",
+  "KLEPTOCRACY",
+  "CORPORATOCRACY",
+  "PLUTOCRACY",
+  "THALASSOCRACY",
+];
+
+const INT_MAX = 2147483647;
+const INT_MIN = -2147483648;
+const LONG_MAX_STR = "9223372036854775807";
+const TEL_MAX = 100000;
+const X_MAX = 460;
+const FLOAT_MAX = 3.4028235e38;
+
+
+function prospectiveValue(input, insertText) {
+  const s = input.selectionStart ?? input.value.length;
+  const e = input.selectionEnd ?? input.value.length;
+  return input.value.slice(0, s) + insertText + input.value.slice(e);
+}
+
+function guardInteger(e, { allowNegative = false, maxLen = 19 } = {}) {
+  const data = e.data ?? "";
+  if (e.inputType && e.inputType.startsWith("delete")) return;
+  if (data === "") return;
+  if (!/[\d-]/.test(data)) {
+    e.preventDefault();
+    return;
+  }
+  const next = prospectiveValue(e.target, data);
+  const re = allowNegative ? /^-?\d*$/ : /^\d*$/;
+  if (!re.test(next)) {
+    e.preventDefault();
+    return;
+  }
+  const digits = next.replace(/-/g, "");
+  if (digits.length > maxLen) {
+    e.preventDefault();
+    return;
+  }
+}
+
+function onPasteInteger(e, { allowNegative = false, maxLen = 19 } = {}) {
+  const txt = (e.clipboardData?.getData("text") ?? "").trim();
+  const re = allowNegative ? /^-?\d+$/ : /^\d+$/;
+  if (!re.test(txt)) {
+    e.preventDefault();
+    return;
+  }
+  const next = prospectiveValue(e.target, txt);
+  const digits = next.replace(/-/g, "");
+  if (digits.length > maxLen) e.preventDefault();
+}
+
+function guardFloatInput(e) {
+  const data = e.data ?? "";
+  if (e.inputType && e.inputType.startsWith("delete")) return;
+  if (data === "") return;
+
+  if (!/[\d.\-]/.test(data)) {
+    e.preventDefault();
+    return;
+  }
+
+  const input = e.target;
+  const next = prospectiveValue(input, data);
+  const { selectionStart } = input;
+
+  if (data === "-") {
+    if (selectionStart !== 0 || next.indexOf("-") > 0) {
+      e.preventDefault();
+      return;
+    }
+  }
+
+  if (data === ".") {
+    const parts = next.split(".");
+    if (parts.length > 2) {
+      e.preventDefault();
+      return;
+    }
+  }
+}
+
+function onPasteFloat(e) {
+  const txt = (e.clipboardData?.getData("text") ?? "").trim();
+
+  if (/inf(inity)?/i.test(txt) || /\bnan\b/i.test(txt)) {
+    e.preventDefault();
+    return;
+  }
+
+  let cleaned = txt.replace(/[^\d.\-]/g, "");
+  cleaned = cleaned.replace(/(?!^)-/g, "");
+  cleaned = cleaned.replace(/(\..*)\./g, "$1");
+
+  if (cleaned !== txt) e.preventDefault();
+  if (cleaned) {
+    const input = e.target;
+    const next = prospectiveValue(input, cleaned);
+    input.value = next;
+    const evt = new Event("input", { bubbles: true });
+    input.dispatchEvent(evt);
+  }
+}
+
+
+const isPositiveDecimalString = (s) => /^[1-9]\d*$/.test(s);
+function decimalLE(a, b) {
+  if (a.length !== b.length) return a.length < b.length;
+  return a <= b;
+}
+
+const floatLike =
+  /^[+-]?(?:\d+\.?\d*|\d*\.?\d+)(?:[eE][+-]?\d+)?$/;
+
+const strictFloat = z.preprocess(
+  (v) => {
+    if (v === "" || v === null || v === undefined) return NaN;
+
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      const lower = trimmed.toLowerCase();
+
+      if (
+        lower === "infinity" ||
+        lower === "+infinity" ||
+        lower === "-infinity" ||
+        lower === "inf" ||
+        lower === "+inf" ||
+        lower === "-inf" ||
+        lower === "nan"
+      ) {
+        return NaN;
+      }
+
+      if (!floatLike.test(trimmed)) {
+        return NaN;
+      }
+
+      return Number(trimmed);
+    }
+
+    if (typeof v !== "number") return NaN;
+    return v;
+  },
+  z
+    .number({ invalid_type_error: "Введите число" })
+    .refine(Number.isFinite, "Недопустимое число")
+    .refine(
+      (n) => Math.abs(n) <= FLOAT_MAX,
+      "Число не может выходить за пределы float"
+    )
+);
+
+const nullableFloat = strictFloat.nullable();
+
+function isRealIsoDateStrict(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return (
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === d
+  );
+}
+
+const GovernmentNullable = z.preprocess(
+  (v) => (v === "" || v === undefined ? null : v),
+  z.enum(GOVERNMENTS).nullable()
+);
+
+
+const baseSchema = z.object({
+  name: z.string().trim().min(1, "Название обязательно"),
+
+  area: z.preprocess(
+    (v) => (v === "" ? undefined : Number(v)),
+    z
+      .number({ invalid_type_error: "Введите целое число" })
+      .int("Только целое")
+      .positive("Площадь > 0")
+      .max(INT_MAX, `Максимум ${INT_MAX}`)
+  ),
+
+  population: z
+    .string()
+    .regex(/^\d+$/, "Только цифры")
+    .refine((s) => isPositiveDecimalString(s), "Должно быть > 0")
+    .refine((s) => s.length <= 19, "Не более 19 цифр (Long)")
+    .refine(
+      (s) => decimalLE(s, LONG_MAX_STR),
+      "Слишком большое значение (Long)"
+    ),
+
+  establishmentDate: z
+    .string()
+    .optional()
+    .refine(
+      (s) => !s || isRealIsoDateStrict(s),
+      { message: "Некорректная дата" }
+    ),
+
+  capital: z.boolean().optional().default(false),
+
+  metersAboveSeaLevel: z.preprocess(
+    (v) => (v === "" ? null : Number(v)),
+    z
+      .number({ invalid_type_error: "Введите целое число" })
+      .int("Только целое")
+      .min(INT_MIN, `Минимум ${INT_MIN}`)
+      .max(INT_MAX, `Максимум ${INT_MAX}`)
+      .nullable()
+  ),
+
+  telephoneCode: z.preprocess(
+    (v) => (v === "" ? undefined : Number(v)),
+    z
+      .number({ invalid_type_error: "Введите целое число" })
+      .int("Только целое")
+      .positive("Код > 0")
+      .max(TEL_MAX, `Макс ${TEL_MAX}`)
+  ),
+
+  climate: z.enum(CLIMATES, { required_error: "Выберите климат" }),
+  government: GovernmentNullable,
+
+  coordsMode: z.enum(["keep", "id", "new"]),
+  govMode: z.enum(["keep", "id", "new", "null"]),
+
+  coordinatesId: z.preprocess(
+    (v) => (v === "" ? null : Number(v)),
+    z.number().int().positive().nullable()
+  ),
+
+  coordinatesX: z
+    .preprocess(
+      (v) => (v === "" || v === undefined ? null : v),
+      nullableFloat
+    )
+    .optional(),
+
+  coordinatesY: z
+    .preprocess(
+      (v) => (v === "" || v === undefined ? null : v),
+      nullableFloat
+    )
+    .optional(),
+
+  governorId: z.preprocess(
+    (v) => (v === "" ? null : Number(v)),
+    z.number().int().positive().nullable()
+  ),
+
+  governorHeight: z
+    .preprocess(
+      (v) => (v === "" || v === undefined ? null : v),
+      nullableFloat
+    )
+    .optional(),
+});
+
+const schema = baseSchema.superRefine((val, ctx) => {
+  if (val.coordsMode === "id") {
+    if (val.coordinatesId == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coordinatesId"],
+        message: "Укажите ID координат",
+      });
+    }
+  } else if (val.coordsMode === "new") {
+    if (val.coordinatesX === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coordinatesX"],
+        message: "Укажите X",
+      });
+    } else if (
+      !Number.isFinite(val.coordinatesX) ||
+      val.coordinatesX > X_MAX
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coordinatesX"],
+        message: `X ≤ ${X_MAX}`,
+      });
+    }
+    if (val.coordinatesY === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coordinatesY"],
+        message: "Укажите Y",
+      });
+    } else if (!Number.isFinite(val.coordinatesY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["coordinatesY"],
+        message: "Некорректный Y",
+      });
+    }
+  }
+
+  if (val.govMode === "id") {
+    if (val.governorId == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["governorId"],
+        message: "Укажите Governor ID",
+      });
+    }
+  } else if (val.govMode === "new") {
+    if (val.governorHeight === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["governorHeight"],
+        message: "Укажите рост",
+      });
+    } else if (
+      !Number.isFinite(val.governorHeight) ||
+      val.governorHeight <= 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["governorHeight"],
+        message: "Рост > 0",
+      });
+    }
+  }
+
+  const numericFields = [
+    "area",
+    "metersAboveSeaLevel",
+    "telephoneCode",
+    "coordinatesId",
+    "coordinatesX",
+    "coordinatesY",
+    "governorId",
+    "governorHeight",
+  ];
+  for (const f of numericFields) {
+    const v = val[f];
+    if (v === null || v === undefined || v === "") continue;
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [f],
+        message: "Недопустимое число",
+      });
+    }
+  }
+});
+
 
 export default function CityEditDialog({ open, onClose, city, onUpdated }) {
-  
-  const [name, setName] = React.useState("");
-  const [area, setArea] = React.useState("");
-  const [population, setPopulation] = React.useState("");
-  const [establishmentDate, setEstablishmentDate] = React.useState("");
-  const [capital, setCapital] = React.useState(false);
-  const [metersAboveSeaLevel, setMeters] = React.useState("");
-  const [telephoneCode, setTel] = React.useState("");
-  const [climate, setClimate] = React.useState("");
-  const [government, setGovernment] = React.useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    reset,
+    clearErrors,
+    setValue,
+  } = useForm({
+    resolver: zodResolver(schema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+    shouldUnregister: false,
+    defaultValues: {
+      name: "",
+      area: "",
+      population: "",
+      establishmentDate: "",
+      capital: false,
+      metersAboveSeaLevel: "",
+      telephoneCode: "",
+      climate: "HUMIDSUBTROPICAL",
+      government: "",
+      coordsMode: "keep",
+      coordinatesId: "",
+      coordinatesX: "",
+      coordinatesY: "",
+      govMode: "keep",
+      governorId: "",
+      governorHeight: "",
+    },
+  });
 
- 
-  const [coordMode, setCoordMode] = React.useState("keep"); 
-  const [coordinatesId, setCoordinatesId] = React.useState("");
-  const [coordX, setCoordX] = React.useState("");
-  const [coordY, setCoordY] = React.useState("");
+  const coordsMode = watch("coordsMode");
+  const govMode = watch("govMode");
 
-
-  const [govMode, setGovMode] = React.useState("keep"); 
-  const [governorId, setGovernorId] = React.useState("");
-  const [govHeight, setGovHeight] = React.useState("");
-
-
-  const [loading, setLoading] = React.useState(false);
-  const [err, setErr] = React.useState("");
-  const [fieldErr, setFieldErr] = React.useState({});
-
-
-  const [coordCheck, setCoordCheck] = React.useState({ state: "idle", text: "" });
-  const [govCheck, setGovCheck] = React.useState({ state: "idle", text: "" });     
+  const [coordCheck, setCoordCheck] = React.useState({
+    state: "idle",
+    text: "",
+  });
+  const [govCheck, setGovCheck] = React.useState({
+    state: "idle",
+    text: "",
+  });
 
   React.useEffect(() => {
     if (open && city) {
-
-      setName(city.name ?? "");
-      setArea(numToStr(city.area));
-      setPopulation(numToStr(city.population));
-      setEstablishmentDate(toDateInput(city.establishmentDate ?? ""));
-      setCapital(!!city.capital);
-      setMeters(numToStr(city.metersAboveSeaLevel));
-      setTel(numToStr(city.telephoneCode));
-      setClimate(city.climate ?? "");
-      setGovernment(city.government ?? ""); 
-      setCoordMode("keep");
-      setCoordinatesId(numToStr(city.coordinatesId ?? city.coordinates?.id));
-      setCoordX(numToStr(city.coordinates?.x));
-      setCoordY(numToStr(city.coordinates?.y));
-
-      setGovMode("keep");
-      setGovernorId(numToStr(city.governorId ?? city.governor?.id));
-      setGovHeight(numToStr(city.governor?.height));
-
-      setErr("");
-      setFieldErr({});
-      setLoading(false);
+      reset({
+        name: city.name ?? "",
+        area: city.area ?? "",
+        population:
+          city.population === null || city.population === undefined
+            ? ""
+            : String(city.population),
+        establishmentDate: city.establishmentDate
+          ? String(city.establishmentDate).slice(0, 10)
+          : "",
+        capital: !!city.capital,
+        metersAboveSeaLevel:
+          city.metersAboveSeaLevel === null ||
+          city.metersAboveSeaLevel === undefined
+            ? ""
+            : String(city.metersAboveSeaLevel),
+        telephoneCode:
+          city.telephoneCode === null || city.telephoneCode === undefined
+            ? ""
+            : String(city.telephoneCode),
+        climate: city.climate ?? "HUMIDSUBTROPICAL",
+        government: city.government ?? "",
+        coordsMode: "keep",
+        coordinatesId:
+          city.coordinatesId ??
+          city.coordinates?.id ??
+          "",
+        coordinatesX:
+          city.coordinates?.x === undefined ||
+          city.coordinates?.x === null
+            ? ""
+            : String(city.coordinates.x),
+        coordinatesY:
+          city.coordinates?.y === undefined ||
+          city.coordinates?.y === null
+            ? ""
+            : String(city.coordinates.y),
+        govMode: city.governor || city.governorId ? "keep" : "keep",
+        governorId:
+          city.governorId ?? city.governor?.id ?? "",
+        governorHeight:
+          city.governor?.height === undefined ||
+          city.governor?.height === null
+            ? ""
+            : String(city.governor.height),
+      });
       setCoordCheck({ state: "idle", text: "" });
       setGovCheck({ state: "idle", text: "" });
     }
-  }, [open, city]);
+  }, [open, city, reset]);
 
-  if (!open || !city) return null;
-
-  const onSubmit = async () => {
-    const vErr = validateAll({
-      name, area, population, establishmentDate, metersAboveSeaLevel, telephoneCode,
-      climate, government, coordMode, coordinatesId, coordX, coordY, govMode, governorId, govHeight
-    });
-    setFieldErr(vErr);
-    if (Object.keys(vErr).length) return;
-
-    const dto = {
-      name: name.trim(),
-      area: Number(area),
-      population: Number(population),
-      capital: Boolean(capital),
-      metersAboveSeaLevel: metersAboveSeaLevel === "" ? null : Number(metersAboveSeaLevel),
-      telephoneCode: telephoneCode === "" ? null : Number(telephoneCode),
-      climate,
-      government: government === "" ? null : government, 
-      establishmentDate: establishmentDate || null,       
-
-
-      coordinatesSpecified: coordMode !== "keep",
-      governorSpecified: govMode !== "keep",
-    };
-
-    if (coordMode === "byId") {
-      dto.coordinatesId = Number(coordinatesId);
-    } else if (coordMode === "create") {
-      dto.coordinates = {
-        x: Number(coordX),
-        y: Number(coordY),
-      };
+  React.useEffect(() => {
+    if (coordsMode === "id") {
+      setValue("coordinatesX", "");
+      setValue("coordinatesY", "");
+      clearErrors(["coordinatesX", "coordinatesY"]);
+    } else if (coordsMode === "new") {
+      setValue("coordinatesId", "");
+      clearErrors(["coordinatesId"]);
+    } else if (coordsMode === "keep") {
+      clearErrors(["coordinatesId", "coordinatesX", "coordinatesY"]);
     }
+  }, [coordsMode, setValue, clearErrors]);
 
-
-    if (govMode === "byId") {
-      dto.governorId = Number(governorId);
-    } else if (govMode === "create") {
-      dto.governor = { height: Number(govHeight) };
+  React.useEffect(() => {
+    if (govMode === "keep") {
+      clearErrors(["governorId", "governorHeight"]);
+    } else if (govMode === "id") {
+      setValue("governorHeight", "");
+      clearErrors(["governorHeight"]);
+    } else if (govMode === "new") {
+      setValue("governorId", "");
+      clearErrors(["governorId"]);
     } else if (govMode === "null") {
-      dto.governor = null;
+      setValue("governorId", "");
+      setValue("governorHeight", "");
+      clearErrors(["governorId", "governorHeight"]);
     }
+  }, [govMode, setValue, clearErrors]);
 
-    setLoading(true);
-    setErr("");
+  const onCheckCoordinatesId = async (idStr) => {
+    const id = Number(String(idStr || "").trim());
+    if (!id) {
+      setCoordCheck({ state: "fail", text: "Введите корректный ID" });
+      return;
+    }
     try {
+      setCoordCheck({ state: "loading", text: "Проверяем..." });
+      const c = await CoordinatesApi.get(id);
+      setCoordCheck({
+        state: "ok",
+        text: `Найдены: x=${c.x}, y=${c.y}`,
+      });
+    } catch {
+      setCoordCheck({
+        state: "fail",
+        text: "Координаты не найдены",
+      });
+    }
+  };
+
+  const onCheckGovernorId = async (idStr) => {
+    const id = Number(String(idStr || "").trim());
+    if (!id) {
+      setGovCheck({
+        state: "fail",
+        text: "Введите корректный ID",
+      });
+      return;
+    }
+    try {
+      setGovCheck({ state: "loading", text: "Проверяем..." });
+      const g = await HumansApi.get(id);
+      setGovCheck({
+        state: "ok",
+        text: `Найден: height=${g.height}`,
+      });
+    } catch {
+      setGovCheck({
+        state: "fail",
+        text: "Губернатор не найден",
+      });
+    }
+  };
+
+  const onSubmit = async (values) => {
+    try {
+      const dto = {
+        name: values.name.trim(),
+        area: Number(values.area),
+        population: Number(values.population),
+        establishmentDate: values.establishmentDate
+          ? new Date(values.establishmentDate)
+          : null,
+        capital: !!values.capital,
+        metersAboveSeaLevel:
+          values.metersAboveSeaLevel === ""
+            ? null
+            : Number(values.metersAboveSeaLevel),
+        telephoneCode:
+          values.telephoneCode === ""
+            ? null
+            : Number(values.telephoneCode),
+        climate: values.climate,
+        government:
+          values.government === "" ? null : values.government,
+        coordinatesId: null,
+        coordinates: null,
+        governorId: null,
+        governor: null,
+        coordinatesSpecified: values.coordsMode !== "keep",
+        governorSpecified: values.govMode !== "keep",
+      };
+
+      if (values.coordsMode === "id") {
+        dto.coordinatesId = Number(values.coordinatesId);
+      } else if (values.coordsMode === "new") {
+        dto.coordinates = {
+          x: Number(values.coordinatesX),
+          y: Number(values.coordinatesY),
+        };
+      } else if (values.coordsMode === "keep") {
+        const currentCoordId =
+          city.coordinatesId ?? city.coordinates?.id ?? null;
+        if (currentCoordId == null) {
+          alert(
+            "У города нет координат, выберите способ задания координат"
+          );
+          return;
+        }
+        dto.coordinatesId = currentCoordId;
+      }
+
+
+      if (values.govMode === "id") {
+        dto.governorId = Number(values.governorId);
+      } else if (values.govMode === "new") {
+        dto.governor = { height: Number(values.governorHeight) };
+      } else if (values.govMode === "null") {
+        dto.governor = null;
+      } else if (values.govMode === "keep") {
+
+      }
+
       await CitiesApi.update(city.id, dto);
       onUpdated?.(city.id);
       onClose?.();
     } catch (e) {
-      const msg =
+      alert(
         e?.response?.data?.message ||
-        e?.response?.data?.error ||
-        e?.message ||
-        "Не удалось обновить город";
-      setErr(msg);
-    } finally {
-      setLoading(false);
+          e?.response?.data?.error ||
+          e.message ||
+          "Не удалось обновить город"
+      );
     }
   };
 
+  const firstError = Object.values(errors)[0];
+  const firstErrorMsg =
+    firstError?.message || (firstError?._errors && firstError._errors[0]);
 
-  const doCheckCoordinatesId = async () => {
-    const id = Number(String(coordinatesId || "").trim());
-    if (!id) { setCoordCheck({ state: "fail", text: "Введите корректный ID" }); return; }
-    try {
-      setCoordCheck({ state: "loading", text: "Проверяем..." });
-      const c = await CoordinatesApi.get(id);
-      setCoordCheck({ state: "ok", text: `Найдены координаты: x=${c.x}, y=${c.y}` });
-    } catch {
-      setCoordCheck({ state: "fail", text: "Координаты не найдены" });
-    }
-  };
-
-  const doCheckGovernorId = async () => {
-    const id = Number(String(governorId || "").trim());
-    if (!id) { setGovCheck({ state: "fail", text: "Введите корректный ID" }); return; }
-    try {
-      setGovCheck({ state: "loading", text: "Проверяем..." });
-      const g = await HumansApi.get(id);
-      setGovCheck({ state: "ok", text: `Найден губернатор: height=${g.height}` });
-    } catch {
-      setGovCheck({ state: "fail", text: "Губернатор не найден" });
-    }
-  };
+  if (!open || !city) return null;
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={`Изменение города #${city.id}`}
-      footer={(
+      footer={
         <>
-          <button type="button" style={btnLight} onClick={onClose} disabled={loading}>Отмена</button>
-          <button type="button" style={btnPrimary} onClick={onSubmit} disabled={loading}>
-            {loading ? "Сохраняю…" : "Сохранить"}
+          <button
+            type="button"
+            onClick={onClose}
+            style={btnLight}
+          >
+            Отмена
+          </button>
+          <button
+            type="submit"
+            form="city-edit-form"
+            style={btnPrimary}
+          >
+            Сохранить
           </button>
         </>
-      )}
+      }
     >
-      <div style={{ display: "grid", gap: 12 }}>
+      <form
+        id="city-edit-form"
+        onSubmit={handleSubmit(onSubmit)}
+        style={{ display: "grid", gap: 10 }}
+      >
+        {firstErrorMsg && (
+          <div
+            style={{
+              background: "#FEF2F2",
+              color: "#991B1B",
+              border: "1px solid #FCA5A5",
+              padding: 8,
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+          >
+            {firstErrorMsg}
+          </div>
+        )}
 
-        <Grid>
-          <Field label="Name *" error={fieldErr.name}>
-            <input style={input} value={name} onChange={(e)=>setName(e.target.value)} placeholder="Город…" />
-          </Field>
-          <Field label="Area * (int > 0)" error={fieldErr.area}>
-            <Num value={area} onChange={setArea} allowNegative={false} />
-          </Field>
-          <Field label="Population * (long > 0)" error={fieldErr.population}>
-            <Num value={population} onChange={setPopulation} allowNegative={false} maxLen={18} />
-          </Field>
+        <label style={label}>
+          <span>Название *</span>
+          <input
+            {...register("name")}
+            style={input(!!errors.name)}
+            placeholder="New City"
+          />
+          {errors.name && (
+            <span style={err}>{errors.name.message}</span>
+          )}
+        </label>
 
-
-          <Field label="Establishment Date (YYYY-MM-DD)" error={fieldErr.establishmentDate}>
+        <div style={twoCols}>
+          <label style={label}>
+            <span>Площадь *</span>
             <input
-              style={input}
-              value={establishmentDate}
-              onChange={(e)=> setEstablishmentDate(maskIsoDate(e.target.value))}
-              onPaste={(e)=> {
-                e.preventDefault();
-                const txt = (e.clipboardData?.getData("text") ?? "");
-                setEstablishmentDate(maskIsoDate(txt));
-              }}
+              {...register("area")}
+              style={input(!!errors.area)}
+              placeholder="500"
               inputMode="numeric"
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
+              onBeforeInput={(e) =>
+                guardInteger(e, {
+                  allowNegative: false,
+                  maxLen: 10,
+                })
+              }
+              onPaste={(e) =>
+                onPasteInteger(e, {
+                  allowNegative: false,
+                  maxLen: 10,
+                })
+              }
             />
-          </Field>
+            {errors.area && (
+              <span style={err}>{errors.area.message}</span>
+            )}
+          </label>
+          <label style={label}>
+            <span>Население *</span>
+            <input
+              {...register("population")}
+              style={input(!!errors.population)}
+              placeholder="1200000"
+              inputMode="numeric"
+              onBeforeInput={(e) =>
+                guardInteger(e, {
+                  allowNegative: false,
+                  maxLen: 30,
+                })
+              }
+              onPaste={(e) =>
+                onPasteInteger(e, {
+                  allowNegative: false,
+                  maxLen: 30,
+                })
+              }
+            />
+            {errors.population && (
+              <span style={err}>
+                {errors.population.message}
+              </span>
+            )}
+          </label>
+        </div>
 
-          <Field label="Capital">
-            <select style={input} value={capital ? "true" : "false"} onChange={(e)=>setCapital(e.target.value === "true")}>
-              <option value="false">Нет</option>
-              <option value="true">Да</option>
+        <div style={twoCols}>
+          <label style={label}>
+            <span>Дата основания</span>
+            <input
+              type="date"
+              {...register("establishmentDate")}
+              style={input(!!errors.establishmentDate)}
+            />
+            {errors.establishmentDate && (
+              <span style={err}>
+                {errors.establishmentDate.message}
+              </span>
+            )}
+          </label>
+          <label
+            style={{
+              ...label,
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <span>Столица</span>
+            <input type="checkbox" {...register("capital")} />
+          </label>
+        </div>
+
+        <div style={twoCols}>
+          <label style={label}>
+            <span>Высота над уровнем моря</span>
+            <input
+              {...register("metersAboveSeaLevel")}
+              style={input(!!errors.metersAboveSeaLevel)}
+              placeholder="200"
+              inputMode="numeric"
+              onBeforeInput={(e) =>
+                guardInteger(e, {
+                  allowNegative: true,
+                  maxLen: 10,
+                })
+              }
+              onPaste={(e) =>
+                onPasteInteger(e, {
+                  allowNegative: true,
+                  maxLen: 10,
+                })
+              }
+            />
+            {errors.metersAboveSeaLevel && (
+              <span style={err}>
+                {errors.metersAboveSeaLevel.message}
+              </span>
+            )}
+          </label>
+          <label style={label}>
+            <span>Телефонный код *</span>
+            <input
+              {...register("telephoneCode")}
+              style={input(!!errors.telephoneCode)}
+              placeholder="777"
+              inputMode="numeric"
+              onBeforeInput={(e) =>
+                guardInteger(e, {
+                  allowNegative: false,
+                  maxLen: 6,
+                })
+              }
+              onPaste={(e) =>
+                onPasteInteger(e, {
+                  allowNegative: false,
+                  maxLen: 6,
+                })
+              }
+            />
+            {errors.telephoneCode && (
+              <span style={err}>
+                {errors.telephoneCode.message}
+              </span>
+            )}
+          </label>
+        </div>
+
+        <div style={twoCols}>
+          <label style={label}>
+            <span>Климат *</span>
+            <select
+              {...register("climate")}
+              style={input(!!errors.climate)}
+            >
+              {CLIMATES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
-          </Field>
-          <Field label="Meters Above Sea Level (int)" error={fieldErr.metersAboveSeaLevel}>
-            <Num value={metersAboveSeaLevel} onChange={setMeters} allowNegative={true} />
-          </Field>
-          <Field label="Telephone Code (1..100000)" error={fieldErr.telephoneCode}>
-            <Num value={telephoneCode} onChange={setTel} allowNegative={false} max={100000} />
-          </Field>
-          <Field label="Climate *" error={fieldErr.climate}>
-            <select style={input} value={climate} onChange={(e)=>setClimate(e.target.value)}>
-              <option value="">— выберите —</option>
-              {CLIMATES.map(c => <option key={c} value={c}>{c}</option>)}
+            {errors.climate && (
+              <span style={err}>{errors.climate.message}</span>
+            )}
+          </label>
+          <label style={label}>
+            <span>Форма правления</span>
+            <select
+              {...register("government")}
+              style={input(!!errors.government)}
+            >
+              <option value="">—</option>
+              {GOVERNMENTS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
             </select>
-          </Field>
+            {errors.government && (
+              <span style={err}>
+                {errors.government.message}
+              </span>
+            )}
+          </label>
+        </div>
 
+        {}
+        <fieldset style={box}>
+          <legend style={legend}>
+            Координаты (обязательно выбрать один способ)
+          </legend>
 
-          <Field label="Government (можно пусто = NULL)" error={fieldErr.government}>
-            <select style={input} value={government} onChange={(e)=>setGovernment(e.target.value)}>
-              <option value="">— нет (NULL) —</option>
-              {GOVERNMENTS.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </Field>
-        </Grid>
-
-
-        <section style={section}>
-          <div style={sectionTitle}>Координаты</div>
-          <div style={radioRow}>
-            <label><input type="radio" name="coordMode" checked={coordMode==="keep"} onChange={()=>setCoordMode("keep")} /> Не менять</label>
-            <label><input type="radio" name="coordMode" checked={coordMode==="byId"} onChange={()=>setCoordMode("byId")} /> Привязать по ID</label>
-            <label><input type="radio" name="coordMode" checked={coordMode==="create"} onChange={()=>setCoordMode("create")} /> Обновить старую</label>
+          <div style={row}>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="keep"
+                {...register("coordsMode")}
+              />
+              <span>Оставить как есть</span>
+            </label>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="id"
+                {...register("coordsMode")}
+              />
+              <span>Привязать по ID</span>
+            </label>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="new"
+                {...register("coordsMode")}
+              />
+              <span>Создать новые</span>
+            </label>
           </div>
 
-          {coordMode === "byId" && (
-            <Grid cols={2}>
-              <Field label="Coordinates ID *" error={fieldErr.coordinatesId}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-                  <Num value={coordinatesId} onChange={setCoordinatesId} allowNegative={false} />
-                  <button type="button" style={btnLight} onClick={doCheckCoordinatesId}>Проверить</button>
-                </div>
-                {coordCheck.state !== "idle" && (
-                  <div style={{ fontSize: 12, marginTop: 4, color: coordCheck.state==="ok" ? "#065F46" : (coordCheck.state==="fail" ? "#B91C1C" : "#374151") }}>
-                    {coordCheck.text}
-                  </div>
+          {coordsMode === "id" ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 8,
+                alignItems: "end",
+              }}
+            >
+              <label style={label}>
+                <span>ID координат *</span>
+                <input
+                  {...register("coordinatesId")}
+                  style={input(!!errors.coordinatesId)}
+                  placeholder="например, 4"
+                  inputMode="numeric"
+                  onBeforeInput={(e) =>
+                    guardInteger(e, {
+                      allowNegative: false,
+                      maxLen: 19,
+                    })
+                  }
+                  onPaste={(e) =>
+                    onPasteInteger(e, {
+                      allowNegative: false,
+                      maxLen: 19,
+                    })
+                  }
+                />
+                {errors.coordinatesId && (
+                  <span style={err}>
+                    {errors.coordinatesId.message}
+                  </span>
                 )}
-              </Field>
-            </Grid>
+              </label>
+              <button
+                type="button"
+                style={btnLight}
+                onClick={() =>
+                  onCheckCoordinatesId(watch("coordinatesId"))
+                }
+              >
+                Проверить
+              </button>
+              {(coordCheck.state === "ok" ||
+                coordCheck.state === "fail" ||
+                coordCheck.state === "loading") && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    fontSize: 12,
+                    color:
+                      coordCheck.state === "ok"
+                        ? "#065F46"
+                        : coordCheck.state === "fail"
+                        ? "#B91C1C"
+                        : "#374151",
+                  }}
+                >
+                  {coordCheck.text}
+                </div>
+              )}
+            </div>
+          ) : coordsMode === "new" ? (
+            <div style={twoCols}>
+              <label style={label}>
+                <span>X (≤ 460) *</span>
+                <input
+                  {...register("coordinatesX")}
+                  style={input(!!errors.coordinatesX)}
+                  placeholder="150"
+                  inputMode="decimal"
+                  onBeforeInput={guardFloatInput}
+                  onPaste={onPasteFloat}
+                />
+                {errors.coordinatesX && (
+                  <span style={err}>
+                    {errors.coordinatesX.message}
+                  </span>
+                )}
+              </label>
+              <label style={label}>
+                <span>Y *</span>
+                <input
+                  {...register("coordinatesY")}
+                  style={input(!!errors.coordinatesY)}
+                  placeholder="80"
+                  inputMode="decimal"
+                  onBeforeInput={guardFloatInput}
+                  onPaste={onPasteFloat}
+                />
+                {errors.coordinatesY && (
+                  <span style={err}>
+                    {errors.coordinatesY.message}
+                  </span>
+                )}
+              </label>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Текущие: ID{" "}
+              {city.coordinatesId ??
+                city.coordinates?.id ??
+                "—"}
+              {city.coordinates
+                ? ` (x=${city.coordinates.x}, y=${city.coordinates.y})`
+                : ""}
+            </div>
           )}
+        </fieldset>
 
-          {coordMode === "create" && (
-            <Grid cols={2}>
-              <Field label="X (float, ≤ 460) *" error={fieldErr.coordX}>
-                <Float value={coordX} onChange={setCoordX} max={460} />
-              </Field>
-              <Field label="Y (float, not null) *" error={fieldErr.coordY}>
-                <Float value={coordY} onChange={setCoordY} />
-              </Field>
-            </Grid>
-          )}
+        {}
+        <fieldset style={box}>
+          <legend style={legend}>Губернатор (необязательно)</legend>
 
-          {coordMode === "keep" && (
-            <Note>
-              Текущие: ID {city.coordinatesId ?? city.coordinates?.id ?? "—"}
-              {city.coordinates ? ` (x=${city.coordinates.x}, y=${city.coordinates.y})` : ""}
-            </Note>
-          )}
-        </section>
-
-
-        <section style={section}>
-          <div style={sectionTitle}>Губернатор</div>
-          <div style={radioRow}>
-            <label><input type="radio" name="govMode" checked={govMode==="keep"} onChange={()=>setGovMode("keep")} /> Не менять</label>
-            <label><input type="radio" name="govMode" checked={govMode==="byId"} onChange={()=>setGovMode("byId")} /> Привязать по ID</label>
-            <label><input type="radio" name="govMode" checked={govMode==="create"} onChange={()=>setGovMode("create")} /> Создать нового</label>
-            <label><input type="radio" name="govMode" checked={govMode==="null"} onChange={()=>setGovMode("null")} /> Снять (NULL)</label>
+          <div style={row}>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="keep"
+                {...register("govMode")}
+              />
+              <span>Оставить как есть</span>
+            </label>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="id"
+                {...register("govMode")}
+              />
+              <span>Привязать по ID</span>
+            </label>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="new"
+                {...register("govMode")}
+              />
+              <span>Создать нового</span>
+            </label>
+            <label style={radioLabel}>
+              <input
+                type="radio"
+                value="null"
+                {...register("govMode")}
+              />
+              <span>Снять (NULL)</span>
+            </label>
           </div>
 
-          {govMode === "byId" && (
-            <Grid cols={2}>
-              <Field label="Governor ID *" error={fieldErr.governorId}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-                  <Num value={governorId} onChange={setGovernorId} allowNegative={false} />
-                  <button type="button" style={btnLight} onClick={doCheckGovernorId}>Проверить</button>
-                </div>
-                {govCheck.state !== "idle" && (
-                  <div style={{ fontSize: 12, marginTop: 4, color: govCheck.state==="ok" ? "#065F46" : (govCheck.state==="fail" ? "#B91C1C" : "#374151") }}>
-                    {govCheck.text}
-                  </div>
+          {govMode === "id" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 8,
+                alignItems: "end",
+              }}
+            >
+              <label style={label}>
+                <span>Governor ID *</span>
+                <input
+                  {...register("governorId")}
+                  style={input(!!errors.governorId)}
+                  placeholder="например, 1"
+                  inputMode="numeric"
+                  onBeforeInput={(e) =>
+                    guardInteger(e, {
+                      allowNegative: false,
+                      maxLen: 19,
+                    })
+                  }
+                  onPaste={(e) =>
+                    onPasteInteger(e, {
+                      allowNegative: false,
+                      maxLen: 19,
+                    })
+                  }
+                />
+                {errors.governorId && (
+                  <span style={err}>
+                    {errors.governorId.message}
+                  </span>
                 )}
-              </Field>
-            </Grid>
+              </label>
+              <button
+                type="button"
+                style={btnLight}
+                onClick={() =>
+                  onCheckGovernorId(watch("governorId"))
+                }
+              >
+                Проверить
+              </button>
+              {(govCheck.state === "ok" ||
+                govCheck.state === "fail" ||
+                govCheck.state === "loading") && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    fontSize: 12,
+                    color:
+                      govCheck.state === "ok"
+                        ? "#065F46"
+                        : govCheck.state === "fail"
+                        ? "#B91C1C"
+                        : "#374151",
+                  }}
+                >
+                  {govCheck.text}
+                </div>
+              )}
+            </div>
           )}
 
-          {govMode === "create" && (
-            <Grid cols={2}>
-              <Field label="Height (float > 0) *" error={fieldErr.govHeight}>
-                <Float value={govHeight} onChange={setGovHeight} minExclusive={0} />
-              </Field>
-            </Grid>
+          {govMode === "new" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: 8,
+              }}
+            >
+              <label style={label}>
+                <span>Рост (height) *</span>
+                <input
+                  {...register("governorHeight")}
+                  style={input(!!errors.governorHeight)}
+                  placeholder="15"
+                  inputMode="decimal"
+                  onBeforeInput={guardFloatInput}
+                  onPaste={onPasteFloat}
+                />
+                {errors.governorHeight && (
+                  <span style={err}>
+                    {errors.governorHeight.message}
+                  </span>
+                )}
+              </label>
+            </div>
           )}
 
           {govMode === "keep" && (
-            <Note>
-              Текущий: ID {city.governorId ?? city.governor?.id ?? "—"}
-              {city.governor ? ` (height=${city.governor.height})` : ""}
-            </Note>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Текущий: ID{" "}
+              {city.governorId ??
+                city.governor?.id ??
+                "—"}
+              {city.governor
+                ? ` (height=${city.governor.height})`
+                : ""}
+            </div>
           )}
-        </section>
+        </fieldset>
 
-        {err && <div style={errBox}>{err}</div>}
-      </div>
+        <div style={hint}>
+          id и creationDate генерируются на сервере. При
+          обновлении отправляется объект City:{" "}
+          <code>coordinatesId</code> <i>или</i>{" "}
+          <code>coordinates</code>, и{" "}
+          <code>governorId</code>/<code>governor</code>/
+          <code>NULL</code>. Поле <code>government</code>{" "}
+          может быть null.
+        </div>
+      </form>
     </Modal>
   );
 }
 
 
-const numToStr = (v) => (v === null || v === undefined ? "" : String(v));
+const twoCols = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(220px, 1fr))",
+  gap: 10,
+};
+const row = {
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  marginBottom: 8,
+  flexWrap: "wrap",
+};
+const radioLabel = {
+  display: "inline-flex",
+  gap: 6,
+  alignItems: "center",
+};
 
-const sanitizeInt = (s, { allowNegative=false } = {}) =>
-  String(s ?? "")
-    .replace(allowNegative ? /[^0-9-]/g : /[^0-9]/g, "")
-    .replace(/(?!^)-/g, "");
-
-const sanitizeFloat = (s) =>
-  String(s ?? "")
-    .replace(/,/g, ".")
-    .replace(/[^0-9.\-]/g, "")
-    .replace(/(?!^)-/g, "")
-    .replace(/(\..*)\./g, "$1"); 
-
-
-function maskIsoDate(raw) {
-  const digits = String(raw || "").replace(/\D/g, "").slice(0, 8); // YYYY MM DD = 8 цифр
-  const y = digits.slice(0, 4);
-  const m = digits.slice(4, 6);
-  const d = digits.slice(6, 8);
-  let out = y;
-  if (m) out += "-" + m;
-  if (d) out += "-" + d;
-  return out;
-}
-function isRealIsoDate(s) {
-  if (!s) return true; // пусто — ок
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number);
-  if (m < 1 || m > 12) return false;
-  if (d < 1 || d > 31) return false;
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return (
-    dt.getUTCFullYear() === y &&
-    dt.getUTCMonth() + 1 === m &&
-    dt.getUTCDate() === d
-  );
-}
-function toDateInput(d) {
-  const s = String(d || "");
-  if (!s) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const dt = new Date(s);
-  if (isNaN(dt.getTime())) return "";
-  const y = dt.getUTCFullYear();
-  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(dt.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function validateAll(v) {
-  const e = {};
-  const isInt = (s) => /^-?\d+$/.test(s);
-  const isFloat = (s) => /^-?\d+(\.\d+)?$/.test(s);
-
-  if (!v.name?.trim()) e.name = "Обязательно";
-
-  if (!isInt(v.area) || Number(v.area) <= 0) e.area = "int > 0";
-  if (!isInt(v.population) || Number(v.population) <= 0) e.population = "long > 0";
-
-
-  if (v.establishmentDate && !/^\d{4}-\d{2}-\d{2}$/.test(v.establishmentDate)) {
-    e.establishmentDate = "YYYY-MM-DD";
-  } else if (v.establishmentDate && !isRealIsoDate(v.establishmentDate)) {
-    e.establishmentDate = "Несуществующая дата";
-  }
-
-  if (v.metersAboveSeaLevel !== "" && !isInt(v.metersAboveSeaLevel)) e.metersAboveSeaLevel = "int";
-  if (v.telephoneCode !== "" && (!isInt(v.telephoneCode) || Number(v.telephoneCode) <= 0 || Number(v.telephoneCode) > 100000)) e.telephoneCode = "1..100000";
-
-  if (!CLIMATES.includes(v.climate)) e.climate = "обязательно";
-
-
-  if (v.government !== "" && !GOVERNMENTS.includes(v.government)) e.government = "некорректное значение";
-
-  if (v.coordMode === "byId") {
-    if (!isInt(v.coordinatesId) || Number(v.coordinatesId) <= 0) e.coordinatesId = "ID ≥ 1";
-  }
-  if (v.coordMode === "create") {
-    if (!isFloat(v.coordX)) e.coordX = "float";
-    else if (Number(v.coordX) > 460) e.coordX = "≤ 460";
-    if (!isFloat(v.coordY)) e.coordY = "float";
-  }
-
-  if (v.govMode === "byId") {
-    if (!isInt(v.governorId) || Number(v.governorId) <= 0) e.governorId = "ID ≥ 1";
-  }
-  if (v.govMode === "create") {
-    if (!isFloat(v.govHeight) || Number(v.govHeight) <= 0) e.govHeight = "> 0";
-  }
-  return e;
-}
-
-
-function Grid({ children, cols = 3 }) {
-  return <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(180px, 1fr))`, gap: 8 }}>{children}</div>;
-}
-function Field({ label, error, children }) {
-  return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <div style={{ fontSize: 12, color: "#374151" }}>{label}</div>
-      {children}
-      {error && <div style={{ color: "crimson", fontSize: 12 }}>{error}</div>}
-    </div>
-  );
-}
-function Num({ value, onChange, allowNegative=false, max, maxLen }) {
-  return (
-    <input
-      style={input}
-      value={value}
-      onChange={(e) => {
-        let s = sanitizeInt(e.target.value, { allowNegative });
-        if (maxLen) s = s.slice(0, maxLen);
-        if (max !== undefined && s !== "" && Number(s) > max) s = String(max);
-        onChange(s);
-      }}
-      inputMode="numeric"
-      placeholder="0"
-    />
-  );
-}
-function Float({ value, onChange, minExclusive, max }) {
-  return (
-    <input
-      style={input}
-      value={value}
-      onChange={(e) => {
-        let s = sanitizeFloat(e.target.value);
-        if (s && (s === "-" || s === "." || s === "-.")) { onChange(s); return; }
-        if (s !== "" && !isNaN(Number(s))) {
-          const n = Number(s);
-          if (minExclusive !== undefined && n <= minExclusive) return;
-          if (max !== undefined && n > max) s = String(max);
-        }
-        onChange(s);
-      }}
-      inputMode="decimal"
-      placeholder="0.0"
-    />
-  );
-}
-
-const input = { padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 8, outline: "none" };
-const btnLight = { padding: "8px 12px", borderRadius: 8, background: "#fff", border: "1px solid #d1d5db", cursor: "pointer" };
-const btnPrimary = { ...btnLight, background: "#eef2ff", borderColor: "#c7d2fe", color: "#1e3a8a" };
-const section = { border: "1px solid #e5e7eb", borderRadius: 10, padding: 10, background: "#fff" };
-const sectionTitle = { fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 };
-const radioRow = { display: "flex", gap: 16, color: "#374151", fontSize: 14 };
-const Note = ({ children }) => <div style={{ fontSize: 12, color: "#6b7280" }}>{children}</div>;
-const errBox = { background: "#FEF2F2", color: "#991B1B", border: "1px solid #FCA5A5", padding: 8, borderRadius: 8, fontSize: 12 };
+const label = {
+  display: "grid",
+  gap: 6,
+  fontSize: 14,
+  width: "100%",
+};
+const input = (error) => ({
+  width: "100%",
+  display: "block",
+  boxSizing: "border-box",
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: `1px solid ${error ? "#ef4444" : "#d1d5db"}`,
+  outline: "none",
+});
+const err = { color: "#b91c1c", fontSize: 12 };
+const hint = {
+  color: "#92400e",
+  background: "#fef3c7",
+  padding: "6px 8px",
+  borderRadius: 6,
+  fontSize: 12,
+};
+const box = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 8,
+  padding: 10,
+};
+const legend = { padding: "0 6px", fontSize: 12, color: "#6b7280" };
+const btnLight = {
+  padding: "8px 12px",
+  borderRadius: 8,
+  background: "#fff",
+  border: "1px solid #d1d5db",
+  cursor: "pointer",
+};
+const btnPrimary = {
+  ...btnLight,
+  background: "#4f46e5",
+  color: "#fff",
+  borderColor: "#4f46e5",
+};

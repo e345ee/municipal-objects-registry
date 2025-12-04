@@ -5,21 +5,57 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CoordinatesApi } from "../api/coordinates";
 
+const FLOAT_MAX = 3.4028235e38; 
 
-const decimalRegex = /^-?\d{1,10}(?:\.\d{1,6})?$/;
+const floatLike = /^[+-]?(?:\d+\.?\d*|\d*\.?\d+)(?:[eE][+-]?\d+)?$/;
+
+const floatSchema = z.preprocess(
+  (v) => {
+    if (v === "" || v === null || v === undefined) return undefined;
+
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      const lower = trimmed.toLowerCase();
+
+      if (
+        lower === "infinity" ||
+        lower === "+infinity" ||
+        lower === "-infinity" ||
+        lower === "inf" ||
+        lower === "+inf" ||
+        lower === "-inf" ||
+        lower === "nan"
+      ) {
+        return NaN;
+      }
+
+      if (!floatLike.test(trimmed)) {
+        return NaN;
+      }
+
+      return Number(trimmed);
+    }
+
+    if (typeof v !== "number") return NaN;
+
+    return v;
+  },
+  z
+    .number({
+      required_error: "Число обязательно",
+      invalid_type_error: "Введите число",
+    })
+    .refine(Number.isFinite, "Недопустимое число") 
+    .refine(
+      (n) => Math.abs(n) <= FLOAT_MAX,
+      "Число не может выходить за пределы float"
+    )
+);
+
 
 const schema = z.object({
-  x: z.string()
-    .trim()
-    .regex(decimalRegex, "Некорректный формат числа")
-    .transform((s) => Number(s))
-    .refine((v) => Number.isFinite(v), "Недопустимое число")
-    .refine((v) => v <= 460, "X не может быть больше 460"),
-  y: z.string()
-    .trim()
-    .regex(decimalRegex, "Некорректный формат числа")
-    .transform((s) => Number(s))
-    .refine((v) => Number.isFinite(v), "Недопустимое число"),
+  x: floatSchema.refine((v) => v <= 460, "X не может быть больше 460"),
+  y: floatSchema, 
 });
 
 export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
@@ -30,26 +66,64 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
   });
 
   const { errors, isValid, isSubmitting } = formState;
-  const xVal = watch("x");
   const yVal = watch("y");
 
-
   const blockBadKeys = (e) => {
-    if (["e","E","+","I","i","N","n","F","f"].includes(e.key)) e.preventDefault();
+    const allowedControl = [
+      "Backspace",
+      "Delete",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Tab",
+      "Home",
+      "End",
+    ];
+    if (allowedControl.includes(e.key)) return;
+
+
+    if (!/[0-9.\-]/.test(e.key)) {
+      e.preventDefault();
+      return;
+    }
+
+    const input = e.currentTarget;
+    const { selectionStart, value } = input;
+
+
+    if (e.key === "-") {
+      if (selectionStart !== 0 || value.includes("-")) {
+        e.preventDefault();
+      }
+    }
+
+
+    if (e.key === ".") {
+      if (value.includes(".")) {
+        e.preventDefault();
+      }
+    }
   };
+
   const sanitizePaste = (field) => (e) => {
     const txt = (e.clipboardData || window.clipboardData).getData("text") ?? "";
+
+
     if (/inf(inity)?/i.test(txt) || /\bnan\b/i.test(txt)) {
       e.preventDefault();
       return;
     }
 
+
     const cleaned = txt
       .replace(/[^\d.\-]/g, "")
-      .replace(/(?!^)-/g, "") 
-      .replace(/(\..*)\./g, "$1"); 
+      .replace(/(?!^)-/g, "")       
+      .replace(/(\..*)\./g, "$1");  
     if (cleaned !== txt) e.preventDefault();
-    if (cleaned) setValue(field, cleaned, { shouldValidate: true, shouldDirty: true });
+    if (cleaned) {
+      setValue(field, cleaned, { shouldValidate: true, shouldDirty: true });
+    }
   };
 
   const onSubmit = async (values) => {
@@ -66,7 +140,9 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
 
   const footer = (
     <>
-      <button onClick={onClose} disabled={isSubmitting}>Отмена</button>
+      <button onClick={onClose} disabled={isSubmitting}>
+        Отмена
+      </button>
       <button
         onClick={handleSubmit(onSubmit)}
         disabled={!isValid || isSubmitting}
@@ -85,17 +161,14 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
           <input
             type="text"
             inputMode="decimal"
-            maxLength={18}                     
             onKeyDown={blockBadKeys}
             onPaste={sanitizePaste("x")}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder="например, 120.5"
             {...register("x")}
             style={input(errors.x)}
           />
           {errors.x && <div style={err}>{errors.x.message}</div>}
-          {xVal && !decimalRegex.test(xVal) && (
-            <div style={hint}>Допустимо до 10 цифр до точки и до 6 после</div>
-          )}
         </label>
 
         <label style={label}>
@@ -103,15 +176,17 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
           <input
             type="text"
             inputMode="decimal"
-            maxLength={18}
             onKeyDown={blockBadKeys}
             onPaste={sanitizePaste("y")}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder="например, -35.2"
             {...register("y")}
             style={input(errors.y)}
           />
           {errors.y && <div style={err}>{errors.y.message}</div>}
-          {yVal === "" && <div style={hint}>Y обязательно для заполнения</div>}
+          {yVal === "" && !errors.y && (
+            <div style={hint}>Y обязательно для заполнения</div>
+          )}
         </label>
       </div>
     </Modal>
@@ -126,4 +201,10 @@ const input = (error) => ({
   outline: "none",
 });
 const err = { color: "#b91c1c", fontSize: 12 };
-const hint = { color: "#92400e", background: "#fef3c7", padding: "6px 8px", borderRadius: 6, fontSize: 12 };
+const hint = {
+  color: "#92400e",
+  background: "#fef3c7",
+  padding: "6px 8px",
+  borderRadius: 6,
+  fontSize: 12,
+};

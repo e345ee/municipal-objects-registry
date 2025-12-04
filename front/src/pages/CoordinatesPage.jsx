@@ -18,10 +18,10 @@ export default function CoordinatesPage() {
   const [linkInfo, setLinkInfo] = React.useState(null);
 
   const [editOpen, setEditOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState(null); // {id, x, y}
+  const [editing, setEditing] = React.useState(null); 
 
   const [filters, setFilters] = React.useState({ id: "", x: "", y: "" });
-  const [sort, setSort] = React.useState(["id,asc"]); // дефолт как раньше
+  const [sort, setSort] = React.useState(["id,asc"]); 
 
   const fetchPage = React.useCallback(
     async (p = page, s = size, f = filters, so = sort) => {
