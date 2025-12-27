@@ -19,14 +19,14 @@ jobs:
           cache: 'maven'
 
       - name: Build with Maven
-        working-directory: ./municipal-objects-registry/backend
+        working-directory: ./backend
         run: mvn clean package -DskipTests
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-war
-          path: municipal-objects-registry/backend/target/*.war
+          path: backend/target/*.war
 
   deploy:
     needs: build
