@@ -1,8 +1,8 @@
 package ru.itmo.service;
 
-import ru.itmo.page.CityPageRequest;
+import ru.itmo.dto.PageRequestDto;
 import ru.itmo.specification.CitySpecifications;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.exeption.RelatedEntityNotFound;
 import ru.itmo.domain.City;
 import ru.itmo.domain.Climate;
@@ -14,8 +14,6 @@ import ru.itmo.dto.CityDto;
 import ru.itmo.dto.CoordinatesDto;
 import ru.itmo.dto.HumanDto;
 import ru.itmo.repository.CityRepository;
-import ru.itmo.repository.CoordinatesRepository;
-import ru.itmo.repository.HumanRepository;
 import ru.itmo.websocet.WsEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,24 +30,24 @@ import java.util.stream.Collectors;
 public class CityService {
 
     private final CityRepository cityRepo;
-    private final CoordinatesRepository coordsRepo;
-    private final HumanRepository humanRepo;
+    private final CoordinatesService coordsService;
+    private final HumanService humanService;
     private final WsEventPublisher ws;
 
     public CityService(
             CityRepository cityRepo,
-            CoordinatesRepository coordsRepo,
-            HumanRepository humanRepo,
+            CoordinatesService coordsService,
+            HumanService humanService,
             WsEventPublisher ws
     ) {
         this.cityRepo = cityRepo;
-        this.coordsRepo = coordsRepo;
-        this.humanRepo = humanRepo;
+        this.coordsService = coordsService;
+        this.humanService = humanService;
         this.ws = ws;
     }
 
     @Transactional(readOnly = true)
-    public PageDto<CityDto> page(CityPageRequest rq) {
+    public CityPageDto<CityDto> page(PageRequestDto rq) {
 
         Specification<City> spec = CitySpecifications.byRequest(rq);
 
@@ -66,10 +64,10 @@ public class CityService {
 
         Page<City> p = cityRepo.findAll(spec, pageable);
 
-        return PageDto.fromPage(p.map(this::toDto));
+        return CityPageDto.fromPage(p.map(this::toDto));
     }
 
-    private Sort resolveSort(CityPageRequest rq) {
+    private Sort resolveSort(PageRequestDto rq) {
 
         List<String> sortParams = rq.getSort();
         if (sortParams != null && !sortParams.isEmpty() && (rq.getSortBy() == null || rq.getSortBy().isBlank())) {
@@ -148,20 +146,20 @@ public class CityService {
 
         Coordinates coords;
         if (dto.getCoordinatesId() != null) {
-            coords = coordsRepo.findById(dto.getCoordinatesId())
+            coords = coordsService.findById(dto.getCoordinatesId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
         } else {
-            coords = coordsRepo.save(dto.getCoordinates().toNewEntity());
+            coords = coordsService.save(dto.getCoordinates().toNewEntity());
             createdNewCoords = true;
         }
         e.setCoordinates(coords);
 
         if (dto.getGovernorId() != null) {
-            Human gov = humanRepo.findById(dto.getGovernorId())
+            Human gov = humanService.findById(dto.getGovernorId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()));
             e.setGovernor(gov);
         } else if (dto.getGovernor() != null) {
-            Human gov = humanRepo.save(dto.getGovernor().toNewEntity());
+            Human gov = humanService.save(dto.getGovernor().toNewEntity());
             e.setGovernor(gov);
             createdNewGovernor = true;
         } else {
@@ -225,7 +223,7 @@ public class CityService {
 
             if (dto.getCoordinatesId() != null) {
 
-                Coordinates coords = coordsRepo.findById(dto.getCoordinatesId())
+                Coordinates coords = coordsService.findById(dto.getCoordinatesId())
                         .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
                 e.setCoordinates(coords);
 
@@ -233,10 +231,10 @@ public class CityService {
 
                 if (e.getCoordinates() != null) {
                     dto.getCoordinates().applyToEntity(e.getCoordinates());
-                    coordsRepo.save(e.getCoordinates());
+                    coordsService.save(e.getCoordinates());
                     updatedExistingCoords = true;
                 } else {
-                    Coordinates created = coordsRepo.save(dto.getCoordinates().toNewEntity());
+                    Coordinates created = coordsService.save(dto.getCoordinates().toNewEntity());
                     e.setCoordinates(created);
                     createdNewCoords = true;
                 }
@@ -252,16 +250,17 @@ public class CityService {
 
             if (dto.getGovernorId() != null) {
 
-                Human gov = humanRepo.findById(dto.getGovernorId())
+                Human gov = humanService.findById(dto.getGovernorId())
                         .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()));
                 e.setGovernor(gov);
+
             } else if (dto.getGovernor() != null) {
                 if (e.getGovernor() != null) {
                     dto.getGovernor().applyToEntity(e.getGovernor());
-                    humanRepo.save(e.getGovernor());
+                    humanService.save(e.getGovernor());
                     updatedExistingGovernor = true;
                 } else {
-                    Human created = humanRepo.save(dto.getGovernor().toNewEntity());
+                    Human created = humanService.save(dto.getGovernor().toNewEntity());
                     e.setGovernor(created);
                     createdNewGovernor = true;
                 }
@@ -322,19 +321,20 @@ public class CityService {
         if (deleteGovernorIfOrphan && governor != null) {
             long usage = cityRepo.countByGovernorId(governor.getId());
             if (usage == 0) {
-                humanRepo.deleteById(governor.getId());
+                humanService.deleteById(governor.getId());
                 ws.sendChange("Human", ChangeAction.DELETED, governor.getId(), null);
             }
         }
         if (deleteCoordinatesIfOrphan && coords != null) {
             long usage = cityRepo.countByCoordinatesId(coords.getId());
             if (usage == 0) {
-                coordsRepo.deleteById(coords.getId());
+                coordsService.deleteById(coords.getId());
                 ws.sendChange("Coordinates", ChangeAction.DELETED, coords.getId(), null);
             }
         }
         ws.sendChange("City", ChangeAction.DELETED, id, null);
     }
+
 
     private CityDto toDto(City e) {
         CityDto dto = new CityDto();

@@ -2,10 +2,10 @@ package ru.itmo.specification;
 
 import ru.itmo.domain.Human;
 import org.springframework.data.jpa.domain.Specification;
-import ru.itmo.page.HumanPageRequest;
+import ru.itmo.dto.HumanPageDto;
 
 public final class HumanSpecifications {
-    public static Specification<Human> byRequest(HumanPageRequest rq) {
+    public static Specification<Human> byRequest(HumanPageDto rq) {
         return Specification.where(idEq(rq.getId()))
                 .and(heightEq(rq.getHeight()));
     }

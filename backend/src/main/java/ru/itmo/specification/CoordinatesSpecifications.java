@@ -2,13 +2,13 @@ package ru.itmo.specification;
 
 import ru.itmo.domain.Coordinates;
 import org.springframework.data.jpa.domain.Specification;
-import ru.itmo.page.CoordinatesPageRequest;
+import ru.itmo.dto.CoordinatesPageDto;
 
 public final class CoordinatesSpecifications {
     private CoordinatesSpecifications() {}
 
     public static Specification<Coordinates> byRequest(
-                CoordinatesPageRequest rq
+                CoordinatesPageDto rq
     ) {
         return Specification.where(idEq(rq.getId()))
                 .and(xEq(rq.getX()))

@@ -1,12 +1,10 @@
 package ru.itmo.service;
 
-import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.PersistenceContext;
-import ru.itmo.page.CoordinatesPageRequest;
+import ru.itmo.dto.CoordinatesPageDto;
 import ru.itmo.specification.CoordinatesSpecifications;
 import ru.itmo.exeption.DeletionBlockedException;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.domain.Coordinates;
 import ru.itmo.websocet.ChangeAction;
 import ru.itmo.dto.CoordinatesDto;
@@ -15,6 +13,7 @@ import ru.itmo.websocet.WsEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -33,11 +32,11 @@ public class CoordinatesService {
     }
 
     @Transactional(readOnly = true)
-    public PageDto<CoordinatesDto> page(CoordinatesPageRequest rq,
-                                        org.springframework.data.domain.Pageable pageable) {
+    public CityPageDto<CoordinatesDto> page(CoordinatesPageDto rq,
+                                            org.springframework.data.domain.Pageable pageable) {
         var spec = CoordinatesSpecifications.byRequest(rq);
         Page<Coordinates> page = repo.findAll(spec, pageable);
-        return PageDto.fromPage(page.map(CoordinatesDto::fromEntity));
+        return CityPageDto.fromPage(page.map(CoordinatesDto::fromEntity));
     }
 
     @Transactional
@@ -95,5 +94,37 @@ public class CoordinatesService {
 
         repo.deleteById(coordId);
         ws.sendChange("Coordinates", ChangeAction.DELETED, coordId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Coordinates getEntity(Long id) {
+        return repo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Coordinates Not Found"));
+    }
+
+    @Transactional
+    public Coordinates saveEntity(Coordinates coordinates) {
+        return repo.save(coordinates);
+    }
+
+    @Transactional
+    public void deleteEntity(Long id) {
+        repo.deleteById(id);
+        ws.sendChange("Coordinates", ChangeAction.DELETED, id, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Coordinates> findById(Long id) {
+        return repo.findById(id);
+    }
+
+    @Transactional
+    public Coordinates save(Coordinates coordinates) {
+        return repo.save(coordinates);
+    }
+
+    @Transactional
+    public void deleteById(Long id) {
+        repo.deleteById(id);
     }
 }

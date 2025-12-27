@@ -1,8 +1,8 @@
-package ru.itmo.page;
+package ru.itmo.dto;
 
 import java.util.List;
 
-public class HumanPageRequest {
+public class HumanPageDto {
     private Integer page = 0;
     private Integer size = 20;
     private List<String> sort = List.of("id,asc");

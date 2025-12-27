@@ -13,9 +13,10 @@ public class ErrorResponse {
     private Map<String, Object> details;
 
 
-    public ErrorResponse() {}
+    public ErrorResponse() {
+    }
 
-    public ErrorResponse(String error, String message, int status, String path,  Map<String, Object> details) {
+    public ErrorResponse(String error, String message, int status, String path, Map<String, Object> details) {
         this.error = error;
         this.message = message;
         this.status = status;

@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.eclipse.persistence.annotations.FetchAttribute;
 import org.eclipse.persistence.annotations.FetchGroup;
+import org.eclipse.persistence.annotations.ReturnInsert;
 
 import java.time.LocalDate;
 import java.util.Date;
@@ -34,7 +35,8 @@ public class City {
     @JoinColumn(name = "coordinates_id", nullable = false)
     private Coordinates coordinates;
 
-    @Column(name = "creation_date", nullable = false, insertable = false, updatable = false)
+    @Column(name = "creation_date", nullable = false, updatable = false)
+    @ReturnInsert(returnOnly = true)
     private LocalDate creationDate;
 
     @Positive(message = "Area must be > 0")

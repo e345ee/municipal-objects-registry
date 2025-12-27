@@ -5,7 +5,7 @@ import ru.itmo.domain.City;
 import ru.itmo.domain.Climate;
 import ru.itmo.domain.Government;
 import org.springframework.data.jpa.domain.Specification;
-import ru.itmo.page.CityPageRequest;
+import ru.itmo.dto.PageRequestDto;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -19,7 +19,7 @@ public final class CitySpecifications {
 
     private CitySpecifications() {}
 
-    public static Specification<City> byRequest(CityPageRequest rq) {
+    public static Specification<City> byRequest(PageRequestDto rq) {
         return Specification
                 .where(eqLong("id", rq.getId()))
                 .and(containsIgnoreCase("name", rq.getName()))

@@ -1,10 +1,10 @@
-package ru.itmo.page;
+package ru.itmo.dto;
 
 import org.springframework.data.domain.Page;
 
 import java.util.List;
 
-public class PageDto<T> {
+public class CityPageDto<T> {
     private List<T> content;
     private int page;
     private int size;
@@ -13,8 +13,8 @@ public class PageDto<T> {
     private boolean first;
     private boolean last;
 
-    public static <T> PageDto<T> fromPage(Page<T> p) {
-        PageDto<T> dto = new PageDto<>();
+    public static <T> CityPageDto<T> fromPage(Page<T> p) {
+        CityPageDto<T> dto = new CityPageDto<>();
         dto.content = p.getContent();
         dto.page = p.getNumber();
         dto.size = p.getSize();

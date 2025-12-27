@@ -2,9 +2,9 @@ package ru.itmo.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import ru.itmo.exeption.DeletionBlockedException;
-import ru.itmo.page.HumanPageRequest;
+import ru.itmo.dto.HumanPageDto;
 import ru.itmo.specification.HumanSpecifications;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.domain.Human;
 import ru.itmo.websocet.ChangeAction;
 import ru.itmo.dto.HumanDto;
@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Service
 public class HumanService {
@@ -31,10 +32,10 @@ public class HumanService {
     }
 
     @Transactional(readOnly = true)
-    public PageDto<HumanDto> page(HumanPageRequest rq,
-                                  org.springframework.data.domain.Pageable pageable) {
+    public CityPageDto<HumanDto> page(HumanPageDto rq,
+                                      org.springframework.data.domain.Pageable pageable) {
         Specification<Human> spec = HumanSpecifications.byRequest(rq);
-        return PageDto.fromPage(humanRepo.findAll(spec, pageable).map(HumanDto::fromEntity));
+        return CityPageDto.fromPage(humanRepo.findAll(spec, pageable).map(HumanDto::fromEntity));
     }
 
     @Transactional
@@ -91,5 +92,40 @@ public class HumanService {
 
         ws.sendChange("Human", ChangeAction.DELETED, humanId, null);
         humanRepo.deleteById(humanId);
+    }
+
+    @Transactional(readOnly = true)
+    public Human getEntity(Long id) {
+        return humanRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Human Not Found"));
+    }
+
+    @Transactional
+    public Human saveEntity(Human human) {
+        return humanRepo.save(human);
+    }
+
+    @Transactional
+    public void deleteIfOrphan(Long humanId) {
+        long usage = humanRepo.countCityUsageByGovernorId(humanId);
+        if (usage == 0) {
+            ws.sendChange("Human", ChangeAction.DELETED, humanId, null);
+            humanRepo.deleteById(humanId);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Human> findById(Long id) {
+        return humanRepo.findById(id);
+    }
+
+    @Transactional
+    public Human save(Human human) {
+        return humanRepo.save(human);
+    }
+
+    @Transactional
+    public void deleteById(Long id) {
+        humanRepo.deleteById(id);
     }
 }

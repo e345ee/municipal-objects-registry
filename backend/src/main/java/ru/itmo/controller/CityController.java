@@ -2,8 +2,8 @@ package ru.itmo.controller;
 
 
 import jakarta.validation.Valid;
-import ru.itmo.page.CityPageRequest;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.PageRequestDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.dto.CityDto;
 import ru.itmo.service.CityService;
 import org.springframework.data.domain.Pageable;
@@ -23,7 +23,7 @@ public class CityController {
     }
 
     @GetMapping
-    public PageDto<CityDto> page(@ModelAttribute CityPageRequest rq, Pageable pageable) {
+    public CityPageDto<CityDto> page(@ModelAttribute PageRequestDto rq, Pageable pageable) {
         if (rq.getPage() == null) rq.setPage(pageable.getPageNumber());
         if (rq.getSize() == null) rq.setSize(pageable.getPageSize());
 

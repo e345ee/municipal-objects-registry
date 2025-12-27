@@ -1,15 +1,13 @@
 package ru.itmo.controller;
 
 import jakarta.validation.Valid;
-import ru.itmo.page.CoordinatesPageRequest;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.CoordinatesPageDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.dto.CoordinatesDto;
 import ru.itmo.service.CoordinatesService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/coordinates")
@@ -21,8 +19,8 @@ public class CoordinatesController {
     }
 
     @GetMapping
-    public PageDto<CoordinatesDto> page(
-            @ModelAttribute CoordinatesPageRequest rq,
+    public CityPageDto<CoordinatesDto> page(
+            @ModelAttribute CoordinatesPageDto rq,
             Pageable pageable
     ) {
         return service.page(rq, pageable);

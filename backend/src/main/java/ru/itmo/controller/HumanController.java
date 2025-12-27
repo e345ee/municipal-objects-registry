@@ -1,14 +1,12 @@
 package ru.itmo.controller;
 
 import jakarta.validation.Valid;
-import ru.itmo.page.HumanPageRequest;
-import ru.itmo.page.PageDto;
+import ru.itmo.dto.HumanPageDto;
+import ru.itmo.dto.CityPageDto;
 import ru.itmo.dto.HumanDto;
 import ru.itmo.service.HumanService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/humans")
@@ -20,8 +18,8 @@ public class HumanController {
     }
 
     @GetMapping
-    public PageDto<HumanDto> page(
-            @ModelAttribute HumanPageRequest rq,
+    public CityPageDto<HumanDto> page(
+            @ModelAttribute HumanPageDto rq,
             org.springframework.data.domain.Pageable pageable
     ) {
         return service.page(rq, pageable);

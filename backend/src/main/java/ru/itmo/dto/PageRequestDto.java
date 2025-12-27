@@ -1,4 +1,4 @@
-package ru.itmo.page;
+package ru.itmo.dto;
 
 import java.util.List;
 
@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 
 
-public class CityPageRequest {
+public class PageRequestDto {
 
     private Integer page = 0;
     private Integer size = 20;

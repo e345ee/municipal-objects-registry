@@ -1,8 +1,8 @@
-package ru.itmo.page;
+package ru.itmo.dto;
 
 import java.util.List;
 
-public class CoordinatesPageRequest {
+public class CoordinatesPageDto {
 
     private Integer page = 0;
     private Integer size = 20;
