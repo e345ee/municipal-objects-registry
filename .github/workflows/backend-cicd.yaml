@@ -33,32 +33,61 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code (for scripts)
+        uses: actions/checkout@v4
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: backend-war
           path: artifact-temp
-      - name: Dispaly
-        run: ls -R artifact-temp
 
-      - name: Copy to Helios via SCP
+      - name: Display
+        run: |
+          ls -R artifact-temp
+          ls -R scripts
+
+      - name: Copy WAR to Helios via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.REMOTE_PORT }} 
+          port: ${{ secrets.REMOTE_PORT }}
           source: "artifact-temp/*.war"
           target: ${{ secrets.SERVER_DESTINATION }}
           strip_components: 1
 
-      - name: Execute remote commands via SSH
+      - name: Copy restart script to Helios via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          source: "scripts/restart-wildfly.sh"
+          target: ${{ secrets.SERVER_DESTINATION }}
+          strip_components: 1
+
+      - name: Execute remote restart script via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.REMOTE_PORT }} 
+          port: ${{ secrets.REMOTE_PORT }}
           script: |
-            echo "Файл успешно доставлен на Helios!"
-            ls -l ${{ secrets.SERVER_DESTINATION }}
+            set -e
+            cd "${{ secrets.SERVER_DESTINATION }}"
+            echo "Destination contents:"
+            ls -la
+
+            echo "Making script executable..."
+            chmod +x ./restart-wildfly.sh
+
+            echo "Restarting WildFly..."
+            ./restart-wildfly.sh
+
+            echo "Done. Tail logs:"
+            tail -n 50 ./wildfly.log || true
+

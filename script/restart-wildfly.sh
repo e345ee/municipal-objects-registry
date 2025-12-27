@@ -91,7 +91,17 @@ start_wildfly() {
     if [[ -n "${new_pid:-}" ]] && kill -0 "$new_pid" >/dev/null 2>&1; then
       echo "$new_pid" > "$PIDFILE"
       echo "WildFly started (java pid=$new_pid). Logs: $LOGFILE"
-      return 0
+
+      echo "Waiting for backend health check..."
+      for _ in {1..60}; do
+        if curl -sf "http://localhost:8789/city-api/health" >/dev/null; then
+        echo "Backend is healthy: http://localhost:8789/city-api/health"
+          return 0
+        fi
+        sleep 1
+      done
+      echo "ERROR: Backend health check failed. See logs: $LOGFILE" >&2
+      exit 1
     fi
     sleep 1
   done
