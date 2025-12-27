@@ -45,16 +45,22 @@ jobs:
       - name: Display
         run: |
           ls -R artifact-temp
-          ls -R scripts
-      - name: Debug workspace
+          echo "Searching restart script in repo..."
+          find . -maxdepth 5 -type f \( -name "restart-wildfly.sh" -o -name "restart-wildfly" -o -name "restart-wildfly*" \) -print
+
+      - name: Prepare restart script for upload
         run: |
-          echo "PWD=$(pwd)"
-          echo "Workspace root:"
-          ls -la
-          echo "Find scripts dir:"
-          find . -maxdepth 3 -type d -name "scripts" -print
-          echo "List top-level dirs:"
-          find . -maxdepth 1 -type d -print
+          set -e
+          SCRIPT_PATH="$(find . -maxdepth 6 -type f \( -name "restart-wildfly.sh" -o -name "restart-wildfly" -o -name "restart-wildfly*" \) | head -n 1)"
+          if [ -z "$SCRIPT_PATH" ]; then
+            echo "ERROR: restart-wildfly script not found in repository" >&2
+            exit 1
+          fi
+          echo "Found script: $SCRIPT_PATH"
+          mkdir -p upload-temp
+          cp "$SCRIPT_PATH" upload-temp/restart-wildfly.sh
+          chmod +x upload-temp/restart-wildfly.sh
+          ls -la upload-temp
 
       - name: Copy WAR to Helios via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -74,7 +80,7 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }}
-          source: "scripts/restart-wildfly.sh"
+          source: "upload-temp/restart-wildfly.sh"
           target: ${{ secrets.SERVER_DESTINATION }}
           strip_components: 1
 
@@ -91,12 +97,14 @@ jobs:
             echo "Destination contents:"
             ls -la
 
-            echo "Making script executable..."
             chmod +x ./restart-wildfly.sh
 
             echo "Restarting WildFly..."
             ./restart-wildfly.sh
 
+            echo "Health check..."
+            curl -fsS http://localhost:8789/city-api/health
+
             echo "Done. Tail logs:"
-            tail -n 50 ./wildfly.log || true
+            tail -n 80 ./wildfly.log || true
 
