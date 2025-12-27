@@ -44,7 +44,7 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }} 
-          source: "municipal-objects-registry/backend/target/*.war"
+          source: "backend/target/*.war"
           target: ${{ secrets.SERVER_DESTINATION }}
           strip_components: 3
 
