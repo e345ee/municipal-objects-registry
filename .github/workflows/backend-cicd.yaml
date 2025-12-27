@@ -28,7 +28,7 @@ jobs:
           name: backend-war
           path: municipal-objects-registry/backend/target/*.war
 
-deploy:
+  deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
