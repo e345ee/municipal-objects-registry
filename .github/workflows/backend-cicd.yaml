@@ -36,6 +36,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-war
+          path: artifact-temp
+      - name: Dispaly
+        run: ls -R artifact-temp
 
       - name: Copy to Helios via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -44,9 +47,9 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }} 
-          source: "backend/target/*.war"
+          source: "artifact-temp/backend/target/*.war"
           target: ${{ secrets.SERVER_DESTINATION }}
-          strip_components: 2
+          strip_components: 3
 
       - name: Execute remote commands via SSH
         uses: appleboy/ssh-action@v1.0.3
