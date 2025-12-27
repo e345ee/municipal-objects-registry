@@ -1,0 +1,139 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: front/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./front
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./front
+        run: npm run build
+
+      - name: Pack static build
+        run: |
+          set -euo pipefail
+
+          if [ -d "front/build" ]; then
+            OUTDIR="front/build"
+          elif [ -d "front/dist" ]; then
+            OUTDIR="front/dist"
+          else
+            echo "ERROR: build output not found (front/build or front/dist)" >&2
+            ls -la front >&2 || true
+            exit 1
+          fi
+
+          tar -C "$OUTDIR" -czf frontend-static.tar.gz .
+          ls -la frontend-static.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-static
+          path: frontend-static.tar.gz
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code (for restart-httpd script)
+        uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-static
+          path: artifact-temp
+
+      - name: Prepare restart-httpd script for upload (find in repo)
+        run: |
+          set -euo pipefail
+          mkdir -p upload-temp
+
+          CANDIDATES="$(find . -maxdepth 12 -type f \( -iname "restart-httpd.sh" -o -iname "restart-httpd" -o -iname "restart-httpd*" \) | sed 's|^\./||')"
+          if [ -z "$CANDIDATES" ]; then
+            echo "ERROR: restart-httpd script not found in repository. Commit it to main." >&2
+            find . -maxdepth 6 -type f | sed 's|^\./||' | head -n 300 >&2
+            exit 1
+          fi
+
+          echo "Found restart-httpd candidates:"
+          echo "$CANDIDATES"
+
+          SCRIPT_PATH="$(echo "$CANDIDATES" | head -n 1)"
+          echo "Using: $SCRIPT_PATH"
+
+          cp "$SCRIPT_PATH" upload-temp/restart-httpd.sh
+          chmod +x upload-temp/restart-httpd.sh
+          ls -la upload-temp
+
+      - name: Copy static archive to Helios via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          source: "artifact-temp/frontend-static.tar.gz"
+          target: "/home/studs/s368748/lab"
+          strip_components: 1
+
+      - name: Copy restart-httpd script to Helios via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          source: "upload-temp/restart-httpd.sh"
+          target: "/home/studs/s368748/lab"
+          strip_components: 1
+
+      - name: Deploy static and restart httpd via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          script: |
+            set -euo pipefail
+
+            LAB="/home/studs/s368748/lab"
+            WWW="$LAB/frontend/www"
+
+            cd "$LAB"
+            echo "Deploying frontend to: $WWW"
+
+            mkdir -p "$WWW"
+            rm -rf "${WWW:?}/"*
+            tar -xzf frontend-static.tar.gz -C "$WWW"
+
+            echo "Restarting httpd..."
+            chmod +x "$LAB/restart-httpd.sh"
+            "$LAB/restart-httpd.sh"
+
+            echo "Frontend health check (Apache on 8586):"
+            curl -fsS "http://localhost:8586/index.html" >/dev/null
+
+            echo "Frontend deploy completed."
