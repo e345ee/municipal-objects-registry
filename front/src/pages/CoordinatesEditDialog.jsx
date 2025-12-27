@@ -64,7 +64,6 @@ export default function CoordinatesEditDialog({ open, onClose, coord, onUpdated 
   });
 
   const { errors, isValid, isSubmitting } = formState;
-  const xVal = watch("x");
   const yVal = watch("y");
 
   React.useEffect(() => {
@@ -102,7 +101,7 @@ export default function CoordinatesEditDialog({ open, onClose, coord, onUpdated 
     if (allowedControl.includes(e.key)) return;
 
 
-    if (!/[0-9.\-]/.test(e.key)) {
+    if (!/[0-9.-]/.test(e.key)) {
       e.preventDefault();
       return;
     }
@@ -136,7 +135,7 @@ export default function CoordinatesEditDialog({ open, onClose, coord, onUpdated 
 
 
     const cleaned = txt
-      .replace(/[^\d.\-]/g, "")
+      .replace(/[^\d.-]/g, "")
       .replace(/(?!^)-/g, "") 
       .replace(/(\..*)\./g, "$1"); 
 

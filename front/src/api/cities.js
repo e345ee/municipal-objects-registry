@@ -35,10 +35,6 @@ export const CitiesApi = {
     return data;
   },
 
-  create: async (dto) => {
-  const { data } = await api.post(`/api/cities`, dto);
-  return data;
-},
 
   create: async (dto) => {
     const payload = { ...dto };

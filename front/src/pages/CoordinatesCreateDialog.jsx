@@ -83,7 +83,7 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
     if (allowedControl.includes(e.key)) return;
 
 
-    if (!/[0-9.\-]/.test(e.key)) {
+    if (!/[0-9.-]/.test(e.key)) {
       e.preventDefault();
       return;
     }
@@ -117,7 +117,7 @@ export default function CoordinatesCreateDialog({ open, onClose, onCreated }) {
 
 
     const cleaned = txt
-      .replace(/[^\d.\-]/g, "")
+      .replace(/[^\d.-]/g, "")
       .replace(/(?!^)-/g, "")       
       .replace(/(\..*)\./g, "$1");  
     if (cleaned !== txt) e.preventDefault();

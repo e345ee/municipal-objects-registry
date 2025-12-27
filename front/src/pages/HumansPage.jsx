@@ -84,11 +84,7 @@ export default function HumansPage() {
   };
 
   const handleDelete = async (id) => {
-    const person = rows.find((r) => r.id === id);
-    const nameInTitle = `ID ${id}${
-        person?.height ? ` (height: ${person.height})` : ""
-    }`;
-
+    
     try {
       await HumansApi.remove(id);
       fetchPage(page, size, filters, sort);

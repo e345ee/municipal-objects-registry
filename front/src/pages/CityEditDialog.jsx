@@ -68,7 +68,7 @@ function guardFloatInput(e) {
   if (e.inputType && e.inputType.startsWith("delete")) return;
   if (data === "") return;
 
-  if (!/[\d.\-]/.test(data)) {
+  if (!/[\d.-]/.test(data)) {
     e.preventDefault();
     return;
   }
@@ -101,7 +101,7 @@ function onPasteFloat(e) {
     return;
   }
 
-  let cleaned = txt.replace(/[^\d.\-]/g, "");
+  let cleaned = txt.replace(/[^\d.-]/g, "");
   cleaned = cleaned.replace(/(?!^)-/g, "");
   cleaned = cleaned.replace(/(\..*)\./g, "$1");
 

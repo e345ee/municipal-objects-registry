@@ -53,7 +53,7 @@ function guardFloatInput(e) {
   if (data === "") return;
 
 
-  if (!/[\d.\-]/.test(data)) { e.preventDefault(); return; }
+  if (!/[\d.-]/.test(data)) { e.preventDefault(); return; }
 
   const input = e.target;
   const next = prospectiveValue(input, data);
@@ -87,7 +87,7 @@ function onPasteFloat(e) {
   }
 
 
-  let cleaned = txt.replace(/[^\d.\-]/g, "");
+  let cleaned = txt.replace(/[^\d.-]/g, "");
   cleaned = cleaned.replace(/(?!^)-/g, "");     
   cleaned = cleaned.replace(/(\..*)\./g, "$1"); 
 
