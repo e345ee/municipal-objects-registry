@@ -21,7 +21,7 @@ jobs:
 
       - name: Build with Maven
         working-directory: ./backend
-        run: mvn clean package -DskipTests
+        run: mvn clean package -DDB_URL="${{ secrets.DB_URL }}" -DDB_USERNAME="${{ secrets.DB_USERNAME }}" -DDB_PASSWORD="${{ secrets.DB_PASSWORD }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

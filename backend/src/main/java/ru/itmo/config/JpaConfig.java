@@ -2,6 +2,7 @@ package ru.itmo.config;
 
 
 import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
 import org.springframework.orm.jpa.*;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import jakarta.persistence.EntityManagerFactory;
 
 import javax.sql.DataSource;
+import java.util.Properties;
 
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -22,15 +24,30 @@ import java.util.Properties;
         entityManagerFactoryRef = "emf",
         transactionManagerRef = "txManager"
 )
+@PropertySource("classpath:db.properties")
 public class JpaConfig {
+
+    private final Environment env;
+
+    public JpaConfig(Environment env) {
+        this.env = env;
+    }
 
     @Bean
     public DataSource dataSource() {
         HikariDataSource ds = new HikariDataSource();
-        ds.setJdbcUrl("jdbc:postgresql://pg:5432/studs");
-        ds.setUsername("s368748");
-        ds.setPassword("TtSXRLK86yz5ENVZ");
+        ds.setJdbcUrl(required("db.url"));
+        ds.setUsername(required("db.username"));
+        ds.setPassword(required("db.password"));
         return ds;
+    }
+
+    private String required(String key) {
+        String v = env.getProperty(key);
+        if (v == null || v.isBlank()) {
+            throw new IllegalStateException("Missing required property: " + key);
+        }
+        return v;
     }
 
     @Bean

@@ -16,6 +16,9 @@
         <spring.data.version>3.3.0</spring.data.version>
         <jackson.version>2.17.1</jackson.version>
         <slf4j.version>2.0.13</slf4j.version>
+        <DB_URL>jdbc:postgresql://localhost:5432/studs</DB_URL>
+        <DB_USERNAME>postgres</DB_USERNAME>
+        <DB_PASSWORD>postgres</DB_PASSWORD>
     </properties>
 
     <dependencies>
@@ -135,6 +138,14 @@
 
     <build>
         <finalName>city-api</finalName>
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
