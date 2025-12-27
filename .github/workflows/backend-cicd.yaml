@@ -47,7 +47,7 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }} 
-          source: "artifact-temp/backend/target/*.war"
+          source: "artifact-temp/*.war"
           target: ${{ secrets.SERVER_DESTINATION }}
           strip_components: 1
 
