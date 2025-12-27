@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
 import WelcomePage from "./pages/WelcomePage";
 import CitiesPage from "./pages/CitiesPage";
 import CoordinatesPage from "./pages/CoordinatesPage";
@@ -8,7 +8,7 @@ import AppHeader from "./components/AppHeader";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppHeader />
       <Routes>
         <Route path="/" element={<WelcomePage />} />
@@ -17,6 +17,6 @@ export default function App() {
         <Route path="/humans" element={<HumansPage />} />
         <Route path="/features" element={<FeaturePage />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
