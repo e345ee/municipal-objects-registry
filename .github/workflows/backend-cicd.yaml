@@ -46,6 +46,15 @@ jobs:
         run: |
           ls -R artifact-temp
           ls -R scripts
+      - name: Debug workspace
+        run: |
+          echo "PWD=$(pwd)"
+          echo "Workspace root:"
+          ls -la
+          echo "Find scripts dir:"
+          find . -maxdepth 3 -type d -name "scripts" -print
+          echo "List top-level dirs:"
+          find . -maxdepth 1 -type d -print
 
       - name: Copy WAR to Helios via SCP
         uses: appleboy/scp-action@v0.1.7
