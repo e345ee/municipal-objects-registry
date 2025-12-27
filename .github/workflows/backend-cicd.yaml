@@ -49,7 +49,7 @@ jobs:
           port: ${{ secrets.REMOTE_PORT }} 
           source: "artifact-temp/backend/target/*.war"
           target: ${{ secrets.SERVER_DESTINATION }}
-          strip_components: 3
+          strip_components: 1
 
       - name: Execute remote commands via SSH
         uses: appleboy/ssh-action@v1.0.3
