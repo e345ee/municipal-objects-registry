@@ -1,15 +1,15 @@
 package ru.itmo.service;
 
 import jakarta.persistence.EntityNotFoundException;
-import ru.itmo.exeption.DeletionBlockedException;
+import ru.itmo.exception.DeletionBlockedException;
 import ru.itmo.dto.HumanPageDto;
 import ru.itmo.specification.HumanSpecifications;
 import ru.itmo.dto.CityPageDto;
 import ru.itmo.domain.Human;
-import ru.itmo.websocet.ChangeAction;
+import ru.itmo.websocket.ChangeAction;
 import ru.itmo.dto.HumanDto;
 import ru.itmo.repository.HumanRepository;
-import ru.itmo.websocet.WsEventPublisher;
+import ru.itmo.websocket.WsEventPublisher;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

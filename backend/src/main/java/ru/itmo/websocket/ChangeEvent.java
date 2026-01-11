@@ -1,4 +1,4 @@
-package ru.itmo.websocet;
+package ru.itmo.websocket;
 
 public class ChangeEvent<T> {
     private String entity;

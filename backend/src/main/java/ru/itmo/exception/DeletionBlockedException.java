@@ -1,4 +1,4 @@
-package ru.itmo.exeption;
+package ru.itmo.exception;
 
 import java.util.List;
 

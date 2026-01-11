@@ -1,4 +1,4 @@
-package ru.itmo.exeption;
+package ru.itmo.exception;
 
 public class RelatedEntityNotFound extends RuntimeException {
     private final String entity;

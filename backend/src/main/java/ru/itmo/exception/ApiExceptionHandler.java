@@ -1,4 +1,4 @@
-package ru.itmo.exeption;
+package ru.itmo.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.validation.ConstraintViolation;

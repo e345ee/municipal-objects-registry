@@ -1,4 +1,4 @@
-package ru.itmo.websocet;
+package ru.itmo.websocket;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;

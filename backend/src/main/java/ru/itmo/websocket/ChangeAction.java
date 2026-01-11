@@ -1,4 +1,4 @@
-package ru.itmo.websocet;
+package ru.itmo.websocket;
 
 public enum ChangeAction {
     CREATED,

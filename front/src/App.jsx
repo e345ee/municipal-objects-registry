@@ -5,11 +5,20 @@ import CoordinatesPage from "./pages/CoordinatesPage";
 import HumansPage from "./pages/HumansPage";
 import FeaturePage from "./pages/FeaturePage";
 import AppHeader from "./components/AppHeader";
+import Snowfall from "react-snowfall";
 
 export default function App() {
   return (
     <HashRouter>
+      <Snowfall
+        snowflakeCount={120}
+        speed={[0.6, 1.4]}
+        wind={[-0.3, 0.8]}
+        radius={[0.8, 2.5]}
+      />
+
       <AppHeader />
+
       <Routes>
         <Route path="/" element={<WelcomePage />} />
         <Route path="/cities" element={<CitiesPage />} />
