@@ -58,6 +58,16 @@ export const CitiesApi = {
     Object.entries(opts).forEach(([k, v]) => params.append(k, String(v)));
     await api.delete(`/api/cities/${id}?${params.toString()}`);
   },
+
+  importJson: async (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post(`/api/cities/import`, fd, {
+  headers: { "Content-Type": "multipart/form-data" }
+   });
+   return data;
+ },
+
 };
 
 export default CitiesApi;

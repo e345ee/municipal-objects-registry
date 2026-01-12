@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS city CASCADE;
 DROP TABLE IF EXISTS coordinates CASCADE;
 DROP TABLE IF EXISTS human CASCADE;
+DROP TABLE IF EXISTS import_operation CASCADE;
 
 DO
 $$
@@ -71,9 +72,20 @@ CREATE TABLE city
             ON DELETE RESTRICT
 );
 
+CREATE TABLE import_operation (
+                                  id BIGSERIAL PRIMARY KEY,
+                                  started_at TIMESTAMP NOT NULL DEFAULT now(),
+                                  finished_at TIMESTAMP,
+                                  status VARCHAR(32) NOT NULL,
+                                  added_count INTEGER,
+                                  error_message TEXT
+);
+
 
 CREATE INDEX idx_city_name         ON city (name);
 CREATE INDEX idx_city_climate      ON city (climate);
 CREATE INDEX idx_city_government   ON city (government);
 CREATE INDEX idx_city_coordinates  ON city (coordinates_id);
 CREATE INDEX idx_city_governor     ON city (governor_id);
+CREATE INDEX idx_import_operation_started ON import_operation(started_at DESC);
+CREATE INDEX idx_import_operation_status ON import_operation(status);

@@ -22,6 +22,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -98,25 +100,42 @@ public class CityService {
 
         switch (sortBy) {
 
-            case "id": return "id";
-            case "name": return "name";
-            case "creationDate": return "creationDate";
-            case "area": return "area";
-            case "population": return "population";
-            case "establishmentDate": return "establishmentDate";
-            case "capital": return "capital";
-            case "metersAboveSeaLevel": return "metersAboveSeaLevel";
-            case "telephoneCode": return "telephoneCode";
-            case "climate": return "climate";
-            case "government": return "government";
+            case "id":
+                return "id";
+            case "name":
+                return "name";
+            case "creationDate":
+                return "creationDate";
+            case "area":
+                return "area";
+            case "population":
+                return "population";
+            case "establishmentDate":
+                return "establishmentDate";
+            case "capital":
+                return "capital";
+            case "metersAboveSeaLevel":
+                return "metersAboveSeaLevel";
+            case "telephoneCode":
+                return "telephoneCode";
+            case "climate":
+                return "climate";
+            case "government":
+                return "government";
 
-            case "coordinatesId": return "coordinates.id";
-            case "coordinatesX":  return "coordinates.x";
-            case "coordinatesY":  return "coordinates.y";
-            case "governorId":    return "governor.id";
-            case "governorHeight":return "governor.height";
+            case "coordinatesId":
+                return "coordinates.id";
+            case "coordinatesX":
+                return "coordinates.x";
+            case "coordinatesY":
+                return "coordinates.y";
+            case "governorId":
+                return "governor.id";
+            case "governorHeight":
+                return "governor.height";
 
-            default: return sortBy;
+            default:
+                return sortBy;
         }
     }
 
@@ -128,9 +147,6 @@ public class CityService {
         if (dto.getGovernorId() != null && dto.getGovernor() != null) {
             throw new IllegalArgumentException("Provide either governorId OR governor, not both.");
         }
-
-        boolean createdNewCoords = false;
-        boolean createdNewGovernor = false;
 
         City e = new City();
 
@@ -149,8 +165,7 @@ public class CityService {
             coords = coordsService.findById(dto.getCoordinatesId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
         } else {
-            coords = coordsService.save(dto.getCoordinates().toNewEntity());
-            createdNewCoords = true;
+            coords = coordsService.saveNewAndNotify(dto.getCoordinates().toNewEntity());
         }
         e.setCoordinates(coords);
 
@@ -159,9 +174,8 @@ public class CityService {
                     .orElseThrow(() -> new RelatedEntityNotFound("Human", dto.getGovernorId()));
             e.setGovernor(gov);
         } else if (dto.getGovernor() != null) {
-            Human gov = humanService.save(dto.getGovernor().toNewEntity());
+            Human gov = humanService.saveNewAndNotify(dto.getGovernor().toNewEntity());
             e.setGovernor(gov);
-            createdNewGovernor = true;
         } else {
             e.setGovernor(null);
         }
@@ -169,17 +183,9 @@ public class CityService {
         e = cityRepo.save(e);
         cityRepo.flush();
 
-        if (createdNewCoords && e.getCoordinates() != null) {
-            ws.sendChange("Coordinates", ChangeAction.CREATED, e.getCoordinates().getId(),
-                    CoordinatesDto.fromEntity(e.getCoordinates()));
-        }
-        if (createdNewGovernor && e.getGovernor() != null) {
-            ws.sendChange("Human", ChangeAction.CREATED, e.getGovernor().getId(),
-                    HumanDto.fromEntity(e.getGovernor()));
-        }
-
         CityDto out = toDto(e);
-        ws.sendChange("City", ChangeAction.CREATED, out.getId(), out);
+        Long cityId = out.getId();
+        afterCommit(() -> ws.sendChange("City", ChangeAction.CREATED, cityId, out));
 
         return out;
     }
@@ -193,11 +199,6 @@ public class CityService {
     public CityDto update(Long id, CityDto dto) {
         City e = cityRepo.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
-
-        boolean updatedExistingCoords = false;
-        boolean createdNewCoords = false;
-        boolean updatedExistingGovernor = false;
-        boolean createdNewGovernor = false;
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
@@ -231,12 +232,10 @@ public class CityService {
 
                 if (e.getCoordinates() != null) {
                     dto.getCoordinates().applyToEntity(e.getCoordinates());
-                    coordsService.save(e.getCoordinates());
-                    updatedExistingCoords = true;
+                    coordsService.saveUpdatedAndNotify(e.getCoordinates());
                 } else {
-                    Coordinates created = coordsService.save(dto.getCoordinates().toNewEntity());
+                    Coordinates created = coordsService.saveNewAndNotify(dto.getCoordinates().toNewEntity());
                     e.setCoordinates(created);
-                    createdNewCoords = true;
                 }
             } else {
                 throw new IllegalArgumentException("Coordinates must be provided: either coordinatesId OR coordinates.");
@@ -257,12 +256,10 @@ public class CityService {
             } else if (dto.getGovernor() != null) {
                 if (e.getGovernor() != null) {
                     dto.getGovernor().applyToEntity(e.getGovernor());
-                    humanService.save(e.getGovernor());
-                    updatedExistingGovernor = true;
+                    humanService.saveUpdatedAndNotify(e.getGovernor());
                 } else {
-                    Human created = humanService.save(dto.getGovernor().toNewEntity());
+                    Human created = humanService.saveNewAndNotify(dto.getGovernor().toNewEntity());
                     e.setGovernor(created);
-                    createdNewGovernor = true;
                 }
             } else {
                 e.setGovernor(null);
@@ -271,26 +268,10 @@ public class CityService {
 
         e = cityRepo.save(e);
 
-        if (updatedExistingCoords && e.getCoordinates() != null) {
-            ws.sendChange("Coordinates", ChangeAction.UPDATED, e.getCoordinates().getId(),
-                    CoordinatesDto.fromEntity(e.getCoordinates()));
-        }
-        if (createdNewCoords && e.getCoordinates() != null) {
-            ws.sendChange("Coordinates", ChangeAction.CREATED, e.getCoordinates().getId(),
-                    CoordinatesDto.fromEntity(e.getCoordinates()));
-        }
-
-        if (updatedExistingGovernor && e.getGovernor() != null) {
-            ws.sendChange("Human", ChangeAction.UPDATED, e.getGovernor().getId(),
-                    HumanDto.fromEntity(e.getGovernor()));
-        }
-        if (createdNewGovernor && e.getGovernor() != null) {
-            ws.sendChange("Human", ChangeAction.CREATED, e.getGovernor().getId(),
-                    HumanDto.fromEntity(e.getGovernor()));
-        }
-
         CityDto out = toDto(e);
-        ws.sendChange("City", ChangeAction.UPDATED, out.getId(), out);
+        Long cityId = out.getId();
+        afterCommit(() -> ws.sendChange("City", ChangeAction.UPDATED, cityId, out));
+
         return out;
     }
 
@@ -321,20 +302,18 @@ public class CityService {
         if (deleteGovernorIfOrphan && governor != null) {
             long usage = cityRepo.countByGovernorId(governor.getId());
             if (usage == 0) {
-                humanService.deleteById(governor.getId());
-                ws.sendChange("Human", ChangeAction.DELETED, governor.getId(), null);
+                humanService.deleteByIdAndNotify(governor.getId());
             }
         }
         if (deleteCoordinatesIfOrphan && coords != null) {
             long usage = cityRepo.countByCoordinatesId(coords.getId());
             if (usage == 0) {
-                coordsService.deleteById(coords.getId());
-                ws.sendChange("Coordinates", ChangeAction.DELETED, coords.getId(), null);
+                coordsService.deleteByIdAndNotify(coords.getId());
             }
         }
-        ws.sendChange("City", ChangeAction.DELETED, id, null);
-    }
 
+        afterCommit(() -> ws.sendChange("City", ChangeAction.DELETED, id, null));
+    }
 
     private CityDto toDto(City e) {
         CityDto dto = new CityDto();
@@ -418,5 +397,21 @@ public class CityService {
         double x = city.getCoordinates().getX();
         double y = city.getCoordinates().getY();
         return Math.sqrt(x * x + y * y);
+    }
+
+    private void afterCommit(Runnable r) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        r.run();
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+        } else {
+            r.run();
+        }
     }
 }

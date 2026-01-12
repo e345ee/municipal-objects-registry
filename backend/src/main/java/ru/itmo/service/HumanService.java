@@ -13,6 +13,9 @@ import ru.itmo.websocket.WsEventPublisher;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -41,11 +44,11 @@ public class HumanService {
     @Transactional
     public HumanDto create(HumanDto humanDto) {
         Human human = humanDto.toNewEntity();
-        human = humanRepo.save(human);   // этого достаточно
+        human = humanRepo.save(human);
 
         HumanDto dto = HumanDto.fromEntity(human);
-        ws.sendChange("Human", ChangeAction.CREATED, dto.getId(), dto);
-
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.CREATED, id, dto));
         return dto;
     }
 
@@ -57,9 +60,10 @@ public class HumanService {
         humanDto.applyToEntity(e);
 
         HumanDto dto = HumanDto.fromEntity(e);
-        ws.sendChange("Human", ChangeAction.UPDATED, dto.getId(), dto);
-
+        Long ids = dto.getId();
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.UPDATED, ids, dto));
         return dto;
+
     }
 
     @Transactional(readOnly = true)
@@ -90,8 +94,9 @@ public class HumanService {
             throw new DeletionBlockedException("Human", humanId, usage, cityIds);
         }
 
-        ws.sendChange("Human", ChangeAction.DELETED, humanId, null);
         humanRepo.deleteById(humanId);
+        Long id = humanId;
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.DELETED, id, null));
     }
 
     @Transactional(readOnly = true)
@@ -109,8 +114,9 @@ public class HumanService {
     public void deleteIfOrphan(Long humanId) {
         long usage = humanRepo.countCityUsageByGovernorId(humanId);
         if (usage == 0) {
-            ws.sendChange("Human", ChangeAction.DELETED, humanId, null);
             humanRepo.deleteById(humanId);
+            Long id = humanId;
+            afterCommit(() -> ws.sendChange("Human", ChangeAction.DELETED, id, null));
         }
     }
 
@@ -128,4 +134,40 @@ public class HumanService {
     public void deleteById(Long id) {
         humanRepo.deleteById(id);
     }
+
+    private void afterCommit(Runnable r) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { try { r.run(); } catch (Exception ignored) {} }
+            });
+        } else {
+            r.run();
+        }
+    }
+
+    @Transactional
+    public Human saveNewAndNotify(Human human) {
+        Human saved = humanRepo.save(human);
+        HumanDto dto = HumanDto.fromEntity(saved);
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.CREATED, id, dto));
+        return saved;
+    }
+
+    @Transactional
+    public Human saveUpdatedAndNotify(Human human) {
+        Human saved = humanRepo.save(human);
+        HumanDto dto = HumanDto.fromEntity(saved);
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.UPDATED, id, dto));
+        return saved;
+    }
+
+    @Transactional
+    public void deleteByIdAndNotify(Long id) {
+        humanRepo.deleteById(id);
+        afterCommit(() -> ws.sendChange("Human", ChangeAction.DELETED, id, null));
+    }
+
+
 }

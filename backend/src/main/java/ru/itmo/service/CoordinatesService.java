@@ -14,6 +14,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -46,8 +49,8 @@ public class CoordinatesService {
         coordinates = repo.save(coordinates);
 
         CoordinatesDto dto = CoordinatesDto.fromEntity(coordinates);
-        ws.sendChange("Coordinates", ChangeAction.CREATED, dto.getId(), dto);
-
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.CREATED, id, dto));
         return dto;
     }
 
@@ -59,8 +62,8 @@ public class CoordinatesService {
         dto.applyToEntity(e);
 
         CoordinatesDto updated = CoordinatesDto.fromEntity(e);
-        ws.sendChange("Coordinates", ChangeAction.UPDATED, updated.getId(), updated);
-
+        Long ids = updated.getId();
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.UPDATED, ids, updated));
         return updated;
     }
 
@@ -93,7 +96,8 @@ public class CoordinatesService {
         }
 
         repo.deleteById(coordId);
-        ws.sendChange("Coordinates", ChangeAction.DELETED, coordId, null);
+        Long id = coordId;
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.DELETED, id, null));
     }
 
     @Transactional(readOnly = true)
@@ -110,7 +114,8 @@ public class CoordinatesService {
     @Transactional
     public void deleteEntity(Long id) {
         repo.deleteById(id);
-        ws.sendChange("Coordinates", ChangeAction.DELETED, id, null);
+        Long cid = id;
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.DELETED, cid, null));
     }
 
     @Transactional(readOnly = true)
@@ -126,5 +131,39 @@ public class CoordinatesService {
     @Transactional
     public void deleteById(Long id) {
         repo.deleteById(id);
+    }
+
+    private void afterCommit(Runnable r) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { try { r.run(); } catch (Exception ignored) {} }
+            });
+        } else {
+            r.run();
+        }
+    }
+
+    @Transactional
+    public Coordinates saveNewAndNotify(Coordinates coordinates) {
+        Coordinates saved = repo.save(coordinates);
+        CoordinatesDto dto = CoordinatesDto.fromEntity(saved);
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.CREATED, id, dto));
+        return saved;
+    }
+
+    @Transactional
+    public Coordinates saveUpdatedAndNotify(Coordinates coordinates) {
+        Coordinates saved = repo.save(coordinates);
+        CoordinatesDto dto = CoordinatesDto.fromEntity(saved);
+        Long id = dto.getId();
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.UPDATED, id, dto));
+        return saved;
+    }
+
+    @Transactional
+    public void deleteByIdAndNotify(Long id) {
+        repo.deleteById(id);
+        afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.DELETED, id, null));
     }
 }

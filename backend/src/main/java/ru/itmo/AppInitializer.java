@@ -1,9 +1,10 @@
 package ru.itmo;
 
+import jakarta.servlet.MultipartConfigElement;
+import jakarta.servlet.ServletRegistration;
 import org.springframework.web.servlet.support.AbstractAnnotationConfigDispatcherServletInitializer;
 import ru.itmo.config.JpaConfig;
 import ru.itmo.config.WebConfig;
-
 
 public class AppInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
     @Override
@@ -19,5 +20,16 @@ public class AppInitializer extends AbstractAnnotationConfigDispatcherServletIni
     @Override
     protected String[] getServletMappings() {
         return new String[]{"/"};
+    }
+
+    @Override
+    protected void customizeRegistration(ServletRegistration.Dynamic registration) {
+        MultipartConfigElement multipartConfig = new MultipartConfigElement(
+                null,
+                10 * 1024 * 1024,
+                20 * 1024 * 1024,
+                0
+        );
+        registration.setMultipartConfig(multipartConfig);
     }
 }

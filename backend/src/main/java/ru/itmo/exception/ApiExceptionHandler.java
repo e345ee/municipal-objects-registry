@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import ru.itmo.exception.ImportValidationException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -129,4 +130,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorResponse body = new ErrorResponse(code, msg, status.value(), path, details);
         return new ResponseEntity<>(body, status);
     }
+
+    @ExceptionHandler(ImportValidationException.class)
+    public ResponseEntity<Object> handleImportValidation(ImportValidationException ex, HttpServletRequest req) {
+        return respond(
+                HttpStatus.BAD_REQUEST,
+                "validation_failed",
+                "Import validation failed",
+                req.getRequestURI(),
+                java.util.Map.of("items", ex.getErrors())
+        );
+    }
+
 }

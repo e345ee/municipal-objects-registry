@@ -6,6 +6,7 @@ import HumansPage from "./pages/HumansPage";
 import FeaturePage from "./pages/FeaturePage";
 import AppHeader from "./components/AppHeader";
 import Snowfall from "react-snowfall";
+import ImportPage from "./pages/ImportPage";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/coordinates" element={<CoordinatesPage />} />
         <Route path="/humans" element={<HumansPage />} />
         <Route path="/features" element={<FeaturePage />} />
+        <Route path="/imports" element={<ImportPage />} />
       </Routes>
     </HashRouter>
   );

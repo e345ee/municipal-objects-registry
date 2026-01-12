@@ -1,14 +1,16 @@
 package ru.itmo.controller;
 
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
-import ru.itmo.dto.PageRequestDto;
-import ru.itmo.dto.CityPageDto;
-import ru.itmo.dto.CityDto;
-import ru.itmo.service.CityService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import ru.itmo.dto.*;
+import ru.itmo.service.CityImportService;
+import ru.itmo.service.CityService;
 
 import java.util.List;
 
@@ -17,9 +19,13 @@ import java.util.List;
 public class CityController {
 
     private final CityService service;
+    private final CityImportService importService;
+    private final ObjectMapper objectMapper;
 
-    public CityController(CityService service) {
+    public CityController(CityService service, CityImportService importService, ObjectMapper objectMapper) {
         this.service = service;
+        this.importService = importService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping
@@ -53,22 +59,17 @@ public class CityController {
     }
 
     @GetMapping("/avg-telephone-code")
-    public double averageTelephoneCode() {
-        return service.averageTelephoneCode();
-    }
-
+    public double averageTelephoneCode() { return service.averageTelephoneCode(); }
 
     @GetMapping("/names-starting")
     public List<CityDto> namesStartingWith(@RequestParam(name = "prefix") String prefix) {
         return service.findByNameStartsWith(prefix);
     }
 
-
     @GetMapping("/meters-above-sea-level/unique")
     public List<Integer> uniqueMetersAboveSeaLevel() {
         return service.uniqueMetersAboveSeaLevel();
     }
-
 
     @GetMapping("/distance-to-largest")
     public double distanceToLargest(@RequestParam(name = "x") double x,
@@ -76,10 +77,25 @@ public class CityController {
         return service.distanceToLargestAreaCity(x, y);
     }
 
-
     @GetMapping("/distance-from-origin-to-oldest")
     public double distanceFromOriginToOldest() {
         return service.distanceFromOriginToOldestCity();
     }
 
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ImportResultDto importJson(@RequestPart("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Файл не передан или пустой.");
+        }
+
+        try (var is = file.getInputStream()) {
+            List<CityDto> dtos = objectMapper.readValue(is, new TypeReference<List<CityDto>>() {});
+            return importService.importCities(dtos);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Некорректный JSON: " + e.getOriginalMessage());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Ошибка обработки файла: " + e.getMessage());
+        }
+    }
 }
+
