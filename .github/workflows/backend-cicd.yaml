@@ -79,13 +79,25 @@ jobs:
             cd "${{ secrets.SERVER_DESTINATION }}"
             test -f ./setup.sql
 
-            echo "Applying setup.sql..."
-            export PGPASSWORD='${{ secrets.DB_PASSWORD }}'
+            DB_URL='${{ secrets.DB_URL }}'
+            DB_USER='${{ secrets.DB_USERNAME }}'
+            DB_PASS='${{ secrets.DB_PASSWORD }}'
+
+            # jdbc:postgresql://host:port/db
+            URL_NO_PREFIX="${DB_URL#jdbc:postgresql://}"
+            DB_HOST="${URL_NO_PREFIX%%:*}"
+            REST="${URL_NO_PREFIX#*:}"
+            DB_PORT="${REST%%/*}"
+            DB_NAME="${REST#*/}"
+
+            echo "Applying setup.sql to ${DB_HOST}:${DB_PORT}/${DB_NAME}"
+
+            export PGPASSWORD="${DB_PASS}"
             psql \
-              -h '${{ secrets.DB_HOST }}' \
-              -p '${{ secrets.DB_PORT }}' \
-              -U '${{ secrets.DB_USERNAME }}' \
-              -d '${{ secrets.DB_NAME }}' \
+              -h "${DB_HOST}" \
+              -p "${DB_PORT}" \
+              -U "${DB_USER}" \
+              -d "${DB_NAME}" \
               -v ON_ERROR_STOP=1 \
               -f ./setup.sql
 
