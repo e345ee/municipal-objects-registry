@@ -1,6 +1,7 @@
 import React from "react";
 import CitiesApi from "../api/cities";
 import ImportsApi from "../api/imports";
+import { createStomp } from "../realtime/bus";
 
 const CLIMATES = ["RAIN_FOREST", "HUMIDSUBTROPICAL", "TUNDRA"];
 const GOVERNMENTS = [
@@ -12,7 +13,7 @@ const GOVERNMENTS = [
 ];
 
 export default function ImportPage() {
-  const fileInputRef = React.useRef(null); 
+  const fileInputRef = React.useRef(null);
 
   const [file, setFile] = React.useState(null);
   const [fileText, setFileText] = React.useState("");
@@ -108,6 +109,23 @@ export default function ImportPage() {
     refreshHistory();
   }, [refreshHistory]);
 
+  const refreshRef = React.useRef(null);
+  React.useEffect(() => {
+    refreshRef.current = refreshHistory;
+  }, [refreshHistory]);
+
+  React.useEffect(() => {
+    const client = createStomp({
+      topics: ["/topic/imports"],
+      onMessage: () => {
+        refreshRef.current?.();
+      },
+    });
+
+    client.activate();
+    return () => client.deactivate();
+  }, []);
+
   const onUpload = async () => {
     setUploading(true);
     setUploadResult(null);
@@ -150,7 +168,7 @@ export default function ImportPage() {
       <div style={card}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <input
-            ref={fileInputRef} 
+            ref={fileInputRef}
             type="file"
             accept="application/json,.json"
             onChange={(e) => {

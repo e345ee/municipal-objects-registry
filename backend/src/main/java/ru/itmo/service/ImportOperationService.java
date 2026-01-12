@@ -8,15 +8,23 @@ import ru.itmo.domain.ImportOperation;
 import ru.itmo.domain.ImportStatus;
 import ru.itmo.repository.ImportOperationRepository;
 
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import ru.itmo.dto.ImportOperationDto;
+import ru.itmo.websocket.ChangeAction;
+import ru.itmo.websocket.WsEventPublisher;
+
 import java.time.LocalDateTime;
 
 @Service
 public class ImportOperationService {
 
     private final ImportOperationRepository repo;
+    private final WsEventPublisher ws;
 
-    public ImportOperationService(ImportOperationRepository repo) {
+    public ImportOperationService(ImportOperationRepository repo, WsEventPublisher ws) {
         this.repo = repo;
+        this.ws = ws;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -24,7 +32,19 @@ public class ImportOperationService {
         ImportOperation op = new ImportOperation();
         op.setStatus(ImportStatus.IN_PROGRESS);
         op.setStartedAt(LocalDateTime.now());
-        return repo.save(op);
+        op = repo.save(op);
+
+        ImportOperation finalOp = op;
+        afterCommit(() ->
+                ws.sendChange(
+                        "ImportOperation",
+                        ChangeAction.CREATED,
+                        finalOp.getId(),
+                        ImportOperationDto.fromEntity(finalOp)
+                )
+        );
+
+        return op;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -34,7 +54,17 @@ public class ImportOperationService {
         op.setFinishedAt(LocalDateTime.now());
         op.setAddedCount(addedCount);
         op.setErrorMessage(null);
-        repo.save(op);
+        op = repo.save(op);
+
+        ImportOperation finalOp = op;
+        afterCommit(() ->
+                ws.sendChange(
+                        "ImportOperation",
+                        ChangeAction.UPDATED,
+                        finalOp.getId(),
+                        ImportOperationDto.fromEntity(finalOp)
+                )
+        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -44,7 +74,27 @@ public class ImportOperationService {
         op.setFinishedAt(LocalDateTime.now());
         op.setAddedCount(null);
         op.setErrorMessage(message);
-        repo.save(op);
+        op = repo.save(op);
+
+        ImportOperation finalOp = op;
+        afterCommit(() ->
+                ws.sendChange(
+                        "ImportOperation",
+                        ChangeAction.UPDATED,
+                        finalOp.getId(),
+                        ImportOperationDto.fromEntity(finalOp)
+                )
+        );
+    }
+
+    private void afterCommit(Runnable r) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            r.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { r.run(); }
+        });
     }
 
     @Transactional(readOnly = true)

@@ -19,6 +19,7 @@ public class WsEventPublisher {
             case "City" -> "/topic/cities";
             case "Human" -> "/topic/humans";
             case "Coordinates" -> "/topic/coordinates";
+            case "ImportOperation" -> "/topic/imports";
             default -> "/topic/changes";
         };
 
