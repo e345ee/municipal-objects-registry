@@ -115,12 +115,13 @@ export default function ImportPage() {
   }, [refreshHistory]);
 
   React.useEffect(() => {
-    const client = createStomp({
-      topics: ["/topic/imports"],
-      onMessage: () => {
-        refreshRef.current?.();
-      },
-    });
+    const client = createStomp(
+  () => {
+    refreshRef.current?.();
+  },
+  ["/topic/imports"]
+);
+
 
     client.activate();
     return () => client.deactivate();
