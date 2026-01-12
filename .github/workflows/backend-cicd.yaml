@@ -47,6 +47,42 @@ jobs:
           ls -R artifact-temp
           echo "Searching restart script in repo..."
           find . -maxdepth 5 -type f \( -name "restart-wildfly.sh" -o -name "restart-wildfly" -o -name "restart-wildfly*" \) -print
+      
+      - name: Copy setup.sql to Helios via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          source: "setup.sql"
+          target: ${{ secrets.SERVER_DESTINATION }}
+          strip_components: 
+      
+      - name: Apply setup.sql on remote DB
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.REMOTE_PORT }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.SERVER_DESTINATION }}"
+            test -f ./setup.sql
+
+            echo "Applying setup.sql..."
+            export PGPASSWORD='${{ secrets.DB_PASSWORD }}'
+            psql \
+              -h '${{ secrets.DB_HOST }}' \
+              -p '${{ secrets.DB_PORT }}' \
+              -U '${{ secrets.DB_USERNAME }}' \
+              -d '${{ secrets.DB_NAME }}' \
+              -v ON_ERROR_STOP=1 \
+              -f ./setup.sql
+
+            echo "setup.sql applied successfully"
+
 
       - name: Prepare restart script for upload
         run: |

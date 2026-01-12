@@ -27,6 +27,7 @@ export default function AppHeader() {
       <Link to="/coordinates" style={linkStyle("/coordinates")}>Координаты</Link>
       <Link to="/humans" style={linkStyle("/humans")}>Люди</Link>
       <Link to="/features" style={linkStyle("/features")}>Доп. функции</Link>
+      <Link to="/imports" style={linkStyle("/imports")}>Импорт</Link>
     </header>
   );
 }
