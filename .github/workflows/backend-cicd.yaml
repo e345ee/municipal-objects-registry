@@ -48,6 +48,14 @@ jobs:
           echo "Searching restart script in repo..."
           find . -maxdepth 5 -type f \( -name "restart-wildfly.sh" -o -name "restart-wildfly" -o -name "restart-wildfly*" \) -print
       
+      - name: Locate setup.sql
+        run: |
+          set -e
+          echo "Repo root:"
+          ls -la
+          echo "Find setup.sql:"
+          find . -maxdepth 6 -type f -name "setup.sql" -print
+      
       - name: Copy setup.sql to Helios via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
