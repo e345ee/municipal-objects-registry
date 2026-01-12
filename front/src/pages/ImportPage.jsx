@@ -12,6 +12,8 @@ const GOVERNMENTS = [
 ];
 
 export default function ImportPage() {
+  const fileInputRef = React.useRef(null); 
+
   const [file, setFile] = React.useState(null);
   const [fileText, setFileText] = React.useState("");
   const [parsed, setParsed] = React.useState(null);
@@ -148,11 +150,14 @@ export default function ImportPage() {
       <div style={card}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <input
+            ref={fileInputRef} 
             type="file"
             accept="application/json,.json"
             onChange={(e) => {
+              resetImportState();
               const f = e.target.files?.[0] || null;
               setFile(f);
+              e.target.value = "";
             }}
           />
           <button
@@ -166,6 +171,7 @@ export default function ImportPage() {
             onClick={() => {
               setFile(null);
               resetImportState();
+              if (fileInputRef.current) fileInputRef.current.value = "";
             }}
             disabled={!file && !fileText}
           >
@@ -299,8 +305,6 @@ export default function ImportPage() {
         </div>
 
         <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>
-          Примечание: backend-DTO истории импорта в текущем виде не содержит пользователя, запустившего импорт.
-          Если преподаватель требует отображать пользователя, это нужно добавить на серверной стороне (поле в ImportOperation + заполнение + выдача в ImportOperationDto).
         </div>
       </div>
 
