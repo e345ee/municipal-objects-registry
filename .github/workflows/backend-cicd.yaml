@@ -63,9 +63,9 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.REMOTE_PORT }}
-          source: "setup.sql"
+          source: "backend/db/setup.sql"
           target: ${{ secrets.SERVER_DESTINATION }}
-          strip_components: 
+          strip_components: 2
       
       - name: Apply setup.sql on remote DB
         uses: appleboy/ssh-action@v1.0.3
