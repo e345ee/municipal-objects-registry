@@ -38,10 +38,6 @@ public class WebConfig implements WebMvcConfigurer {
         return springValidator();
     }
 
-    @Bean
-    public jakarta.validation.Validator jakartaValidator() {
-        return springValidator();
-    }
 
     @Bean
     public StandardServletMultipartResolver multipartResolver() {
