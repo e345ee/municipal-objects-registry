@@ -3,6 +3,7 @@ package ru.itmo.config;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.JpaDialect;
 import org.springframework.orm.jpa.vendor.EclipseLinkJpaDialect;
@@ -18,10 +19,12 @@ public class TxConfig {
         return new EclipseLinkJpaDialect();
     }
 
-    @Bean
+    @Bean(name = "transactionManager")
+    @Primary
     public PlatformTransactionManager transactionManager(EntityManagerFactory emf, JpaDialect jpaDialect) {
         JpaTransactionManager tm = new JpaTransactionManager(emf);
         tm.setJpaDialect(jpaDialect);
         return tm;
     }
 }
+
