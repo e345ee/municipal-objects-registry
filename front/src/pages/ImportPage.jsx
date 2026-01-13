@@ -115,13 +115,12 @@ export default function ImportPage() {
   }, [refreshHistory]);
 
   React.useEffect(() => {
-    const client = createStomp(
-  () => {
-    refreshRef.current?.();
-  },
-  ["/topic/imports"]
-);
-
+    const client = createStomp({
+      topics: ["/topic/imports"],
+      onMessage: () => {
+        refreshRef.current?.();
+      },
+    });
 
     client.activate();
     return () => client.deactivate();
@@ -135,7 +134,6 @@ export default function ImportPage() {
     try {
       const resp = await CitiesApi.importJson(file);
       setUploadResult(resp);
-      refreshHistory();
     } catch (e) {
       const resp = e?.response?.data;
       if (resp?.error === "validation_failed" && resp?.details?.items) {
@@ -151,6 +149,7 @@ export default function ImportPage() {
         });
       }
     } finally {
+      refreshHistory();
       setUploading(false);
     }
   };

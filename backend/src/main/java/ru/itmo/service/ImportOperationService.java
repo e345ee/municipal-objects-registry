@@ -3,14 +3,14 @@ package ru.itmo.service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import ru.itmo.domain.ImportOperation;
-import ru.itmo.domain.ImportStatus;
-import ru.itmo.repository.ImportOperationRepository;
-
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import ru.itmo.domain.ImportOperation;
+import ru.itmo.domain.ImportStatus;
 import ru.itmo.dto.ImportOperationDto;
+import ru.itmo.repository.ImportOperationRepository;
 import ru.itmo.websocket.ChangeAction;
 import ru.itmo.websocket.WsEventPublisher;
 
@@ -32,6 +32,10 @@ public class ImportOperationService {
         ImportOperation op = new ImportOperation();
         op.setStatus(ImportStatus.IN_PROGRESS);
         op.setStartedAt(LocalDateTime.now());
+        op.setFinishedAt(null);
+        op.setAddedCount(null);
+        op.setErrorMessage(null);
+
         op = repo.save(op);
 
         ImportOperation finalOp = op;
@@ -54,6 +58,7 @@ public class ImportOperationService {
         op.setFinishedAt(LocalDateTime.now());
         op.setAddedCount(addedCount);
         op.setErrorMessage(null);
+
         op = repo.save(op);
 
         ImportOperation finalOp = op;
@@ -74,6 +79,7 @@ public class ImportOperationService {
         op.setFinishedAt(LocalDateTime.now());
         op.setAddedCount(null);
         op.setErrorMessage(message);
+
         op = repo.save(op);
 
         ImportOperation finalOp = op;
@@ -93,7 +99,10 @@ public class ImportOperationService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() { r.run(); }
+            @Override
+            public void afterCommit() {
+                r.run();
+            }
         });
     }
 
