@@ -25,6 +25,18 @@ export default function CitiesPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
+  const [infoOpen, setInfoOpen] = React.useState(false);
+  const [infoTitle, setInfoTitle] = React.useState("");
+  const [infoMessage, setInfoMessage] = React.useState("");
+  const [infoDetails, setInfoDetails] = React.useState("");
+
+  const showInfo = React.useCallback(({ title, message, details = "" }) => {
+    setInfoTitle(title ?? "Сообщение");
+    setInfoMessage(message ?? "");
+    setInfoDetails(details ?? "");
+    setInfoOpen(true);
+  }, []);
+
   const [draft, setDraft] = React.useState({
     name: "", climate: "", government: "",
     area: "", population: "", metersAboveSeaLevel: "",
@@ -64,11 +76,18 @@ export default function CitiesPage() {
       }
     } catch (e) {
       console.error(e);
-      setError("Не удалось загрузить список городов");
+      const msg = "Не удалось загрузить список городов";
+      setError(msg);
+
+      showInfo({
+        title: "Ошибка загрузки",
+        message: msg,
+        details: e?.message ? String(e.message) : "",
+      });
     } finally {
       setLoading(false);
     }
-  }, [page, size, filters, sortBy, dir]);
+  }, [page, size, filters, sortBy, dir, showInfo]);
 
   React.useEffect(() => { fetchPage(); }, [fetchPage]);
 
@@ -104,7 +123,7 @@ export default function CitiesPage() {
     const errs = {};
     for (const [k, v] of Object.entries(d)) {
       const s = String(v ?? "").trim();
-      if (!сheckNotEmpty(s)) continue;
+      if (!checkNotEmpty(s)) continue;
       const vfn = validators[k];
       if (vfn) {
         const ok = vfn(s);
@@ -177,6 +196,7 @@ export default function CitiesPage() {
   };
   const onDeleted = () => {
     fetchPage();
+    showInfo({ title: "Удаление", message: "Город удалён." });
   };
 
   const askEdit = (city) => {
@@ -185,6 +205,7 @@ export default function CitiesPage() {
   };
   const onUpdated = () => {
     fetchPage();
+    showInfo({ title: "Изменение", message: "Изменения сохранены." });
   };
 
   return (
@@ -193,7 +214,7 @@ export default function CitiesPage() {
         <h2 style={{ margin: 0 }}>Города</h2>
         <button style={btn} onClick={()=>setOpenCreate(true)}>+ Создать город</button>
 
-        <details style={filtersWrap} closed>
+        <details style={filtersWrap}>
           <summary style={{ cursor: "pointer", userSelect: "none" }}>Фильтры</summary>
 
           <div style={filtersGrid}>
@@ -223,28 +244,24 @@ export default function CitiesPage() {
               value={draft.area}
               onChange={(v)=>onDraftChange("area", v)}
               error={errors.area}
-              allowNegative={false}
             />
             <InputNum
               placeholder="Population ="
               value={draft.population}
               onChange={(v)=>onDraftChange("population", v)}
               error={errors.population}
-              allowNegative={false}
             />
             <InputNum
               placeholder="MetersAboveSeaLevel ="
               value={draft.metersAboveSeaLevel}
               onChange={(v)=>onDraftChange("metersAboveSeaLevel", v)}
               error={errors.metersAboveSeaLevel}
-              allowNegative={true}
             />
             <InputNum
               placeholder="TelephoneCode ="
               value={draft.telephoneCode}
               onChange={(v)=>onDraftChange("telephoneCode", v)}
               error={errors.telephoneCode}
-              allowNegative={false}
             />
 
             <Select
@@ -259,14 +276,12 @@ export default function CitiesPage() {
               value={draft.coordinatesId}
               onChange={(v)=>onDraftChange("coordinatesId", v)}
               error={errors.coordinatesId}
-              allowNegative={false}
             />
             <InputNum
               placeholder="Governor ID ="
               value={draft.governorId}
               onChange={(v)=>onDraftChange("governorId", v)}
               error={errors.governorId}
-              allowNegative={false}
             />
             <Select
               value={draft.governorIdIsNull}
@@ -390,7 +405,10 @@ export default function CitiesPage() {
       <CityCreateDialog
         open={openCreate}
         onClose={()=>setOpenCreate(false)}
-        onCreated={()=>{ fetchPage(); }}
+        onCreated={()=>{
+          fetchPage();
+          showInfo({ title: "Создание", message: "Город создан." });
+        }}
       />
 
       <CityDeleteDialog
@@ -406,11 +424,19 @@ export default function CitiesPage() {
         city={editCity}
         onUpdated={onUpdated}
       />
+
+      <InfoDialog
+        open={infoOpen}
+        title={infoTitle}
+        message={infoMessage}
+        details={infoDetails}
+        onClose={()=>setInfoOpen(false)}
+      />
     </div>
   );
 }
 
-function сheckNotEmpty(s) {
+function checkNotEmpty(s) {
   return !(s === "" || s === null || s === undefined);
 }
 
@@ -525,6 +551,38 @@ const TD = ({ children, right, noEllipsis }) => (
   </td>
 );
 
+function InfoDialog({ open, title, message, details, onClose }) {
+  if (!open) return null;
+
+  const onBackdrop = (e) => {
+    if (e.target === e.currentTarget) onClose?.();
+  };
+
+  return (
+    <div style={modalBackdrop} onMouseDown={onBackdrop}>
+      <div style={modalCard} role="dialog" aria-modal="true" aria-label={title || "Диалог"}>
+        <div style={modalHeader}>
+          <div style={{ fontWeight: 700 }}>{title || "Сообщение"}</div>
+          <button style={modalCloseBtn} onClick={onClose} aria-label="Закрыть">✕</button>
+        </div>
+
+        {message && <div style={{ marginTop: 10 }}>{message}</div>}
+
+        {details ? (
+          <details style={modalDetails}>
+            <summary style={{ cursor: "pointer" }}>Подробности</summary>
+            <pre style={modalPre}>{String(details)}</pre>
+          </details>
+        ) : null}
+
+        <div style={modalFooter}>
+          <button style={btn} onClick={onClose}>Ок</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const table = {
   width: "100%",
   borderCollapse: "separate",
@@ -570,3 +628,62 @@ const pager = { display: "flex", gap: 8, marginTop: 12, alignItems: "center", ju
 const filtersWrap = { padding: 12, border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff", minWidth: 260 };
 const filtersGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginTop: 10 };
 const input = { padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 8, outline: "none" };
+
+const modalBackdrop = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 16,
+  zIndex: 1000,
+};
+
+const modalCard = {
+  width: "min(560px, 100%)",
+  background: "#fff",
+  borderRadius: 12,
+  border: "1px solid #e5e7eb",
+  boxShadow: "0 18px 40px rgba(0,0,0,0.15)",
+  padding: 14,
+};
+
+const modalHeader = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const modalFooter = {
+  display: "flex",
+  justifyContent: "flex-end",
+  marginTop: 14,
+};
+
+const modalCloseBtn = {
+  cursor: "pointer",
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  borderRadius: 8,
+  width: 32,
+  height: 32,
+  lineHeight: "30px",
+};
+
+const modalDetails = {
+  marginTop: 10,
+  border: "1px solid #e5e7eb",
+  borderRadius: 10,
+  padding: 10,
+  background: "#fafafa",
+};
+
+const modalPre = {
+  margin: "10px 0 0",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  fontSize: 12,
+  color: "#374151",
+};
