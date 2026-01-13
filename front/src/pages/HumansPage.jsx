@@ -106,7 +106,6 @@ export default function HumansPage() {
       const hasLinks =
           (usage !== null && usage > 0) || (cityIds && cityIds.length > 0);
 
-      // Если сервер не прислал информации о связанных городах — показываем обычную ошибку
       if (!hasLinks) {
         setError(
             "Не удалось удалить человека. Проверьте связанные данные и попробуйте ещё раз."
