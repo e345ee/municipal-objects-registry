@@ -115,12 +115,12 @@ export default function ImportPage() {
   }, [refreshHistory]);
 
   React.useEffect(() => {
-    const client = createStomp({
-      topics: ["/topic/imports"],
-      onMessage: () => {
+    const client = createStomp(
+      () => {
         refreshRef.current?.();
       },
-    });
+      ["/topic/imports"]
+    );
 
     client.activate();
     return () => client.deactivate();
@@ -178,11 +178,7 @@ export default function ImportPage() {
               e.target.value = "";
             }}
           />
-          <button
-            onClick={onUpload}
-            disabled={!canUpload}
-            style={canUpload ? btnPrimary : btnDisabled}
-          >
+          <button onClick={onUpload} disabled={!canUpload} style={canUpload ? btnPrimary : btnDisabled}>
             Загрузить на сервер
           </button>
           <button
@@ -213,9 +209,7 @@ export default function ImportPage() {
         {validationErrors.length > 0 && (
           <div style={{ ...banner, ...bannerWarn }}>
             <div style={{ fontWeight: 600 }}>Клиентская валидация: найдено ошибок {validationErrors.length}</div>
-            <div style={{ marginTop: 8, maxHeight: 240, overflow: "auto" }}>
-              {renderErrors(validationErrors)}
-            </div>
+            <div style={{ marginTop: 8, maxHeight: 240, overflow: "auto" }}>{renderErrors(validationErrors)}</div>
           </div>
         )}
 
@@ -224,9 +218,7 @@ export default function ImportPage() {
             <div style={{ fontWeight: 600 }}>Импорт завершён успешно</div>
             <div>Создано объектов: {uploadResult.created}</div>
             {Array.isArray(uploadResult.cityIds) && uploadResult.cityIds.length > 0 && (
-              <div style={{ marginTop: 6, fontSize: 13 }}>
-                IDs: {uploadResult.cityIds.join(", ")}
-              </div>
+              <div style={{ marginTop: 6, fontSize: 13 }}>IDs: {uploadResult.cityIds.join(", ")}</div>
             )}
           </div>
         )}
@@ -235,9 +227,7 @@ export default function ImportPage() {
           <div style={{ ...banner, ...bannerError }}>
             <div style={{ fontWeight: 600 }}>Импорт отклонён сервером (валидация)</div>
             <div style={{ marginTop: 6 }}>{uploadError.message}</div>
-            <div style={{ marginTop: 8, maxHeight: 240, overflow: "auto" }}>
-              {renderServerItemErrors(uploadError.items)}
-            </div>
+            <div style={{ marginTop: 8, maxHeight: 240, overflow: "auto" }}>{renderServerItemErrors(uploadError.items)}</div>
           </div>
         )}
 
@@ -253,7 +243,9 @@ export default function ImportPage() {
 
       <div style={card}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={refreshHistory} disabled={histLoading}>Обновить</button>
+          <button onClick={refreshHistory} disabled={histLoading}>
+            Обновить
+          </button>
 
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             Размер страницы:
@@ -266,7 +258,9 @@ export default function ImportPage() {
               }}
             >
               {[5, 10, 25, 50].map((n) => (
-                <option key={n} value={n}>{n}</option>
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </label>
@@ -301,29 +295,44 @@ export default function ImportPage() {
                   <TD>
                     <span style={statusPill(op.status)}>{op.status}</span>
                   </TD>
-                  <TD right noEllipsis>{op.addedCount ?? "—"}</TD>
+                  <TD right noEllipsis>
+                    {op.addedCount ?? "—"}
+                  </TD>
                   <TD noEllipsis>{fmtDateTime(op.startedAt)}</TD>
                   <TD noEllipsis>{op.finishedAt ? fmtDateTime(op.finishedAt) : "—"}</TD>
                 </tr>
               ))}
               {!histLoading && history.length === 0 && (
-                <tr><td style={tdEmpty} colSpan={5}>История пуста</td></tr>
+                <tr>
+                  <td style={tdEmpty} colSpan={5}>
+                    История пуста
+                  </td>
+                </tr>
               )}
               {histLoading && (
-                <tr><td style={tdEmpty} colSpan={5}>Загрузка…</td></tr>
+                <tr>
+                  <td style={tdEmpty} colSpan={5}>
+                    Загрузка…
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
 
         <div style={pager}>
-          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={isFirst || histLoading}>Назад</button>
-          <div>Стр. {totalPages === 0 ? 0 : page + 1} / {totalPages}</div>
-          <button onClick={() => setPage((p) => p + 1)} disabled={isLast || histLoading}>Вперёд</button>
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={isFirst || histLoading}>
+            Назад
+          </button>
+          <div>
+            Стр. {totalPages === 0 ? 0 : page + 1} / {totalPages}
+          </div>
+          <button onClick={() => setPage((p) => p + 1)} disabled={isLast || histLoading}>
+            Вперёд
+          </button>
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}>
-        </div>
+        <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}></div>
       </div>
 
       {parsed && Array.isArray(parsed) && parsed.length > 0 && (
@@ -332,9 +341,7 @@ export default function ImportPage() {
             <h3 style={{ margin: 0 }}>Предпросмотр (первые 3 записи)</h3>
             <div style={{ fontSize: 13, opacity: 0.85 }}>Всего записей: {parsed.length}</div>
           </div>
-          <pre style={pre}>
-            {JSON.stringify(parsed.slice(0, 3), null, 2)}
-          </pre>
+          <pre style={pre}>{JSON.stringify(parsed.slice(0, 3), null, 2)}</pre>
         </div>
       )}
     </div>
@@ -520,11 +527,13 @@ function renderErrors(errors) {
 
 function renderServerItemErrors(items) {
   if (!Array.isArray(items)) return null;
-  return renderErrors(items.map((x) => ({
-    index: x.index,
-    field: x.field,
-    message: x.message
-  })));
+  return renderErrors(
+    items.map((x) => ({
+      index: x.index,
+      field: x.field,
+      message: x.message,
+    }))
+  );
 }
 
 function extractApiMessage(err) {
@@ -558,11 +567,13 @@ function isInteger(v) {
 function isIsoDateStrict(s) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
   if (!m) return false;
-  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const y = Number(m[1]),
+    mo = Number(m[2]),
+    d = Number(m[3]);
   if (mo < 1 || mo > 12) return false;
   if (d < 1 || d > 31) return false;
   const dt = new Date(Date.UTC(y, mo - 1, d));
-  return dt.getUTCFullYear() === y && (dt.getUTCMonth() + 1) === mo && dt.getUTCDate() === d;
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() + 1 === mo && dt.getUTCDate() === d;
 }
 
 function fmtDateTime(v) {
@@ -582,7 +593,7 @@ function statusPill(status) {
   };
   if (status === "SUCCESS") return { ...base, borderColor: "#b7e3c0", background: "#eefaf1" };
   if (status === "FAILED") return { ...base, borderColor: "#f2b8b5", background: "#fff0ef" };
-  if (status === "RUNNING") return { ...base, borderColor: "#c9d7ff", background: "#f0f5ff" };
+  if (status === "IN_PROGRESS") return { ...base, borderColor: "#c9d7ff", background: "#f0f5ff" };
   return base;
 }
 
