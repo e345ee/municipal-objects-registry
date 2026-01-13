@@ -159,7 +159,7 @@ jobs:
             ./restart-wildfly.sh
 
             echo "Health check..."
-            curl -fsS http://localhost:8789/city-api/api/health
+            curl -fsS http://localhost:8789/city-api/health
 
             echo "Done. Tail logs:"
             tail -n 80 ./wildfly.log || true
