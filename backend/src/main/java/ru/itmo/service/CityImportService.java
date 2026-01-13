@@ -3,6 +3,7 @@ package ru.itmo.service;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.dto.CityDto;
 import ru.itmo.dto.ImportResultDto;
@@ -25,7 +26,7 @@ public class CityImportService {
         this.importOpService = importOpService;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public ImportResultDto importCities(List<CityDto> dtos) {
         if (dtos == null || dtos.isEmpty()) {
             throw new IllegalArgumentException("Файл не содержит записей для импорта.");

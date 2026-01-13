@@ -22,4 +22,8 @@ public interface CoordinatesRepository extends JpaRepository<Coordinates, Long> 
     @Query("SELECT c.id FROM City c WHERE c.coordinates.id = :coordId")
     List<Long> findCityIdsByCoordinatesId(@Param("coordId") Long coordId);
 
+    boolean existsByXAndY(Float x, Float y);
+
+    boolean existsByXAndYAndIdNot(Float x, Float y, Long id);
+
 }

@@ -1,7 +1,9 @@
 package ru.itmo.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.transaction.annotation.Isolation;
 import ru.itmo.dto.CoordinatesPageDto;
+import ru.itmo.exception.BusinessRuleViolationException;
 import ru.itmo.specification.CoordinatesSpecifications;
 import ru.itmo.exception.DeletionBlockedException;
 import ru.itmo.dto.CityPageDto;
@@ -13,10 +15,11 @@ import ru.itmo.websocket.WsEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Optional;
+
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -42,11 +45,28 @@ public class CoordinatesService {
         return CityPageDto.fromPage(page.map(CoordinatesDto::fromEntity));
     }
 
-    @Transactional
+
+    private void validateUniquePair(float x, Float y, Long currentIdOrNull) {
+        boolean exists = (currentIdOrNull == null)
+                ? repo.existsByXAndY(x, y)
+                : repo.existsByXAndYAndIdNot(x, y, currentIdOrNull);
+
+        if (exists) {
+            throw new BusinessRuleViolationException(
+                    "COORDINATES_NOT_UNIQUE",
+                    "Пара координат должна быть уникальной: (" + x + ", " + y + ")"
+            );
+        }
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CoordinatesDto create(CoordinatesDto coordinatesDto) {
         Coordinates coordinates = coordinatesDto.toNewEntity();
 
+        validateUniquePair(coordinates.getX(), coordinates.getY(), null);
+
         coordinates = repo.save(coordinates);
+        repo.flush();
 
         CoordinatesDto dto = CoordinatesDto.fromEntity(coordinates);
         Long id = dto.getId();
@@ -54,14 +74,19 @@ public class CoordinatesService {
         return dto;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CoordinatesDto update(Long id, CoordinatesDto dto) {
         Coordinates e = repo.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Coordinates Not Found"));
 
         dto.applyToEntity(e);
 
-        CoordinatesDto updated = CoordinatesDto.fromEntity(e);
+        validateUniquePair(e.getX(), e.getY(), e.getId());
+
+        Coordinates saved = repo.save(e);
+        repo.flush();
+
+        CoordinatesDto updated = CoordinatesDto.fromEntity(saved);
         Long ids = updated.getId();
         afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.UPDATED, ids, updated));
         return updated;
@@ -106,9 +131,13 @@ public class CoordinatesService {
                 .orElseThrow(() -> new EntityNotFoundException("Coordinates Not Found"));
     }
 
-    @Transactional
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Coordinates saveEntity(Coordinates coordinates) {
-        return repo.save(coordinates);
+        validateUniquePair(coordinates.getX(), coordinates.getY(), coordinates.getId());
+        Coordinates saved = repo.save(coordinates);
+        repo.flush();
+        return saved;
     }
 
     @Transactional
@@ -123,9 +152,12 @@ public class CoordinatesService {
         return repo.findById(id);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Coordinates save(Coordinates coordinates) {
-        return repo.save(coordinates);
+        validateUniquePair(coordinates.getX(), coordinates.getY(), coordinates.getId());
+        Coordinates saved = repo.save(coordinates);
+        repo.flush();
+        return saved;
     }
 
     @Transactional
@@ -136,25 +168,39 @@ public class CoordinatesService {
     private void afterCommit(Runnable r) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { try { r.run(); } catch (Exception ignored) {} }
+                @Override
+                public void afterCommit() {
+                    try {
+                        r.run();
+                    } catch (Exception ignored) {
+                    }
+                }
             });
         } else {
             r.run();
         }
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Coordinates saveNewAndNotify(Coordinates coordinates) {
+        validateUniquePair(coordinates.getX(), coordinates.getY(), null);
+
         Coordinates saved = repo.save(coordinates);
+        repo.flush();
+
         CoordinatesDto dto = CoordinatesDto.fromEntity(saved);
         Long id = dto.getId();
         afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.CREATED, id, dto));
         return saved;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Coordinates saveUpdatedAndNotify(Coordinates coordinates) {
+        validateUniquePair(coordinates.getX(), coordinates.getY(), coordinates.getId());
+
         Coordinates saved = repo.save(coordinates);
+        repo.flush();
+
         CoordinatesDto dto = CoordinatesDto.fromEntity(saved);
         Long id = dto.getId();
         afterCommit(() -> ws.sendChange("Coordinates", ChangeAction.UPDATED, id, dto));

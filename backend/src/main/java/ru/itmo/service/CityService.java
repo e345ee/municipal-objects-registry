@@ -1,6 +1,8 @@
 package ru.itmo.service;
 
+import org.springframework.transaction.annotation.Isolation;
 import ru.itmo.dto.PageRequestDto;
+import ru.itmo.exception.BusinessRuleViolationException;
 import ru.itmo.specification.CitySpecifications;
 import ru.itmo.dto.CityPageDto;
 import ru.itmo.exception.RelatedEntityNotFound;
@@ -139,7 +141,7 @@ public class CityService {
         }
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CityDto create(CityDto dto) {
         if ((dto.getCoordinatesId() == null) == (dto.getCoordinates() == null)) {
             throw new IllegalArgumentException("Provide either coordinatesId OR coordinates (exactly one).");
@@ -148,13 +150,22 @@ public class CityService {
             throw new IllegalArgumentException("Provide either governorId OR governor, not both.");
         }
 
+        dto.setName(normalizeCityName(dto.getName()));
+
+        if (dto.getName() != null && cityRepo.existsByNameIgnoreCase(dto.getName())) {
+            throw new BusinessRuleViolationException(
+                    "CITY_NAME_NOT_UNIQUE",
+                    "Название города должно быть уникальным: " + dto.getName()
+            );
+        }
+
         City e = new City();
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
         e.setPopulation(dto.getPopulation());
         e.setEstablishmentDate(dto.getEstablishmentDate());
-        e.setCapital(dto.getCapital());
+        e.setCapital(Boolean.TRUE.equals(dto.getCapital()));
         e.setMetersAboveSeaLevel(dto.getMetersAboveSeaLevel());
         e.setTelephoneCode(dto.getTelephoneCode());
         e.setClimate(Climate.valueOf(dto.getClimate()));
@@ -165,6 +176,7 @@ public class CityService {
             coords = coordsService.findById(dto.getCoordinatesId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
         } else {
+
             coords = coordsService.saveNewAndNotify(dto.getCoordinates().toNewEntity());
         }
         e.setCoordinates(coords);
@@ -179,6 +191,8 @@ public class CityService {
         } else {
             e.setGovernor(null);
         }
+
+        validateCapitalRequiresGovernor(e);
 
         e = cityRepo.save(e);
         cityRepo.flush();
@@ -195,10 +209,19 @@ public class CityService {
         return Enum.valueOf(type, v);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CityDto update(Long id, CityDto dto) {
         City e = cityRepo.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
+
+        dto.setName(normalizeCityName(dto.getName()));
+
+        if (dto.getName() != null && cityRepo.existsByNameIgnoreCaseAndIdNot(dto.getName(), id)) {
+            throw new BusinessRuleViolationException(
+                    "CITY_NAME_NOT_UNIQUE",
+                    "Название города должно быть уникальным: " + dto.getName()
+            );
+        }
 
         e.setName(dto.getName());
         e.setArea(dto.getArea());
@@ -266,7 +289,10 @@ public class CityService {
             }
         }
 
+        validateCapitalRequiresGovernor(e);
+
         e = cityRepo.save(e);
+        cityRepo.flush();
 
         CityDto out = toDto(e);
         Long cityId = out.getId();
@@ -412,6 +438,22 @@ public class CityService {
             });
         } else {
             r.run();
+        }
+    }
+
+    private String normalizeCityName(String name) {
+        if (name == null) return null;
+        String t = name.trim();
+        if (t.isEmpty()) return t;
+        return t.substring(0, 1).toUpperCase() + t.substring(1);
+    }
+
+    private void validateCapitalRequiresGovernor(City city) {
+        if (city != null && city.isCapital() && city.getGovernor() == null) {
+            throw new BusinessRuleViolationException(
+                    "CAPITAL_REQUIRES_GOVERNOR",
+                    "Город не может быть столицей без гувернотра."
+            );
         }
     }
 }

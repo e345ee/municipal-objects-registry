@@ -10,4 +10,8 @@ public interface CityRepository extends JpaRepository<City, Long>, JpaSpecificat
 
     long countByCoordinatesId(Long coordinatesId);
 
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
 }

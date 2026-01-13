@@ -142,4 +142,17 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BusinessRuleViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleBusinessRule(BusinessRuleViolationException ex,
+                                                                  HttpServletRequest req) {
+        var body = new LinkedHashMap<String, Object>();
+        body.put("error", "business_rule_violation");
+        body.put("code", ex.getCode());
+        body.put("message", ex.getMessage());
+        body.put("status", 409);
+        body.put("path", req.getRequestURI());
+        body.put("timestamp", java.time.OffsetDateTime.now().toString());
+        return ResponseEntity.status(409).body(body);
+    }
+
 }
