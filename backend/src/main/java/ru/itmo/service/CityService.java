@@ -1,33 +1,37 @@
 package ru.itmo.service;
 
-import org.springframework.transaction.annotation.Isolation;
-import ru.itmo.dto.PageRequestDto;
-import ru.itmo.exception.BusinessRuleViolationException;
-import ru.itmo.specification.CitySpecifications;
-import ru.itmo.dto.CityPageDto;
-import ru.itmo.exception.RelatedEntityNotFound;
-import ru.itmo.domain.City;
-import ru.itmo.domain.Climate;
-import ru.itmo.domain.Coordinates;
-import ru.itmo.domain.Government;
-import ru.itmo.domain.Human;
-import ru.itmo.websocket.ChangeAction;
-import ru.itmo.dto.CityDto;
-import ru.itmo.dto.CoordinatesDto;
-import ru.itmo.dto.HumanDto;
-import ru.itmo.repository.CityRepository;
-import ru.itmo.websocket.WsEventPublisher;
+import org.postgresql.util.PSQLException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import ru.itmo.domain.City;
+import ru.itmo.domain.Climate;
+import ru.itmo.domain.Coordinates;
+import ru.itmo.domain.Government;
+import ru.itmo.domain.Human;
+import ru.itmo.dto.CityDto;
+import ru.itmo.dto.CityPageDto;
+import ru.itmo.dto.CoordinatesDto;
+import ru.itmo.dto.HumanDto;
+import ru.itmo.dto.PageRequestDto;
+import ru.itmo.exception.BusinessRuleViolationException;
+import ru.itmo.exception.RelatedEntityNotFound;
+import ru.itmo.repository.CityRepository;
+import ru.itmo.specification.CitySpecifications;
+import ru.itmo.websocket.ChangeAction;
+import ru.itmo.websocket.WsEventPublisher;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,24 +41,26 @@ public class CityService {
     private final CoordinatesService coordsService;
     private final HumanService humanService;
     private final WsEventPublisher ws;
+    private final PlatformTransactionManager txManager;
 
     public CityService(
             CityRepository cityRepo,
             CoordinatesService coordsService,
             HumanService humanService,
-            WsEventPublisher ws
+            WsEventPublisher ws,
+            PlatformTransactionManager txManager
     ) {
         this.cityRepo = cityRepo;
         this.coordsService = coordsService;
         this.humanService = humanService;
         this.ws = ws;
+        this.txManager = txManager;
     }
 
     @Transactional(readOnly = true)
     public CityPageDto<CityDto> page(PageRequestDto rq) {
 
         Specification<City> spec = CitySpecifications.byRequest(rq);
-
         Sort sort = resolveSort(rq);
 
         boolean hasIdOrder = sort.stream().anyMatch(o -> "id".equals(o.getProperty()));
@@ -141,8 +147,47 @@ public class CityService {
         }
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+
+    private <T> T runSerializableWithRetry(Supplier<T> action) {
+        int maxAttempts = 3;
+        long backoffMs = 30;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                TransactionTemplate tt = new TransactionTemplate(txManager);
+                tt.setIsolationLevel(TransactionDefinition.ISOLATION_SERIALIZABLE);
+                return tt.execute(status -> action.get());
+            } catch (RuntimeException ex) {
+                if (isSerializationFailure(ex) && attempt < maxAttempts) {
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
+                    backoffMs *= 2;
+                    continue;
+                }
+                throw ex;
+            }
+        }
+        throw new IllegalStateException("Unreachable code");
+    }
+
+    private boolean isSerializationFailure(Throwable ex) {
+        Throwable t = ex;
+        while (t.getCause() != null) t = t.getCause();
+        if (t instanceof PSQLException psql) {
+            return "40001".equals(psql.getSQLState());
+        }
+        return false;
+    }
+
+
     public CityDto create(CityDto dto) {
+        return runSerializableWithRetry(() -> doCreate(dto));
+    }
+
+    private CityDto doCreate(CityDto dto) {
         if ((dto.getCoordinatesId() == null) == (dto.getCoordinates() == null)) {
             throw new IllegalArgumentException("Provide either coordinatesId OR coordinates (exactly one).");
         }
@@ -176,7 +221,6 @@ public class CityService {
             coords = coordsService.findById(dto.getCoordinatesId())
                     .orElseThrow(() -> new RelatedEntityNotFound("Coordinates", dto.getCoordinatesId()));
         } else {
-
             coords = coordsService.saveNewAndNotify(dto.getCoordinates().toNewEntity());
         }
         e.setCoordinates(coords);
@@ -209,9 +253,12 @@ public class CityService {
         return Enum.valueOf(type, v);
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
     public CityDto update(Long id, CityDto dto) {
-        City e = cityRepo.findById(id)
+        return runSerializableWithRetry(() -> doUpdate(id, dto));
+    }
+
+    private CityDto doUpdate(Long id, CityDto dto) {
+        City e = cityRepo.findByIdForUpdate(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
 
         dto.setName(normalizeCityName(dto.getName()));
@@ -312,11 +359,20 @@ public class CityService {
         return cityRepo.findAll().stream().map(this::toDto).toList();
     }
 
-    @Transactional
     public void delete(Long id,
                        boolean deleteGovernorIfOrphan,
                        boolean deleteCoordinatesIfOrphan) {
-        City city = cityRepo.findById(id)
+        runSerializableWithRetry(() -> {
+            doDelete(id, deleteGovernorIfOrphan, deleteCoordinatesIfOrphan);
+            return null;
+        });
+    }
+
+    private void doDelete(Long id,
+                          boolean deleteGovernorIfOrphan,
+                          boolean deleteCoordinatesIfOrphan) {
+
+        City city = cityRepo.findByIdForUpdate(id)
                 .orElseThrow(() -> new NoSuchElementException("Город с id=" + id + " не найден"));
 
         Human governor = city.getGovernor();

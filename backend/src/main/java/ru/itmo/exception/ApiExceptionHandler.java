@@ -18,6 +18,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import ru.itmo.exception.ImportValidationException;
+import org.springframework.orm.jpa.JpaSystemException;
+import org.springframework.transaction.TransactionSystemException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -74,11 +76,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(HttpStatus.CONFLICT, "data_integrity_violation", "Data integrity violation", req.getRequestURI(), null);
     }
 
-    @ExceptionHandler(PSQLException.class)
-    public ResponseEntity<Object> handlePSQL(PSQLException ex, HttpServletRequest req) {
-        log.warn("Database error: {}", ex.getMessage());
-        return respond(HttpStatus.INTERNAL_SERVER_ERROR, "db_error", "Database error", req.getRequestURI(), null);
-    }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleOther(Exception ex, HttpServletRequest req) {
@@ -153,6 +150,46 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         body.put("path", req.getRequestURI());
         body.put("timestamp", java.time.OffsetDateTime.now().toString());
         return ResponseEntity.status(409).body(body);
+    }
+
+    @ExceptionHandler({TransactionSystemException.class, JpaSystemException.class})
+    public ResponseEntity<Object> handleTxExceptions(Exception ex, HttpServletRequest req) {
+        Throwable root = ex;
+        while (root.getCause() != null) root = root.getCause();
+
+        if (root instanceof PSQLException psql) {
+
+            if ("40001".equals(psql.getSQLState())) {
+                return respond(
+                        HttpStatus.CONFLICT,
+                        "serialization_failure",
+                        "Concurrent transaction conflict. Please retry.",
+                        req.getRequestURI(),
+                        null
+                );
+            }
+
+            if ("40P01".equals(psql.getSQLState())) {
+                return respond(
+                        HttpStatus.CONFLICT,
+                        "deadlock",
+                        "Deadlock detected. Please retry.",
+                        req.getRequestURI(),
+                        null
+                );
+            }
+        }
+
+        log.error("Unhandled tx error", ex);
+        return respond(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "Unexpected server error", req.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(PSQLException.class)
+    public ResponseEntity<Object> handlePSQL(PSQLException ex, HttpServletRequest req) {
+        if ("40001".equals(ex.getSQLState())) {
+            return respond(HttpStatus.CONFLICT, "serialization_failure", "Concurrent transaction conflict. Please retry.", req.getRequestURI(), null);
+        }
+        return respond(HttpStatus.INTERNAL_SERVER_ERROR, "db_error", "Database error", req.getRequestURI(), null);
     }
 
 }
