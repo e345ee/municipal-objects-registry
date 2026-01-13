@@ -93,8 +93,8 @@ public class CityController {
             return importService.importCities(dtos);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Некорректный JSON: " + e.getOriginalMessage());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Ошибка обработки файла: " + e.getMessage());
+        } catch (java.io.IOException e) {
+            throw new IllegalArgumentException("Ошибка чтения файла: " + e.getMessage());
         }
     }
 }

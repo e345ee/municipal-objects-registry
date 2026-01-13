@@ -94,7 +94,7 @@ public class ImportOperationService {
     }
 
     private void afterCommit(Runnable r) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             r.run();
             return;
         }
