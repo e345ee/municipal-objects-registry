@@ -30,6 +30,7 @@ import ru.itmo.specification.CitySpecifications;
 import ru.itmo.websocket.ChangeAction;
 import ru.itmo.websocket.WsEventPublisher;
 
+
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -524,9 +525,6 @@ public class CityService {
         );
     }
 
-    @Transactional
-    public void deleteAllCities() {
-        cityRepo.deleteAllInBatch(); 
-    }
+
 }
 

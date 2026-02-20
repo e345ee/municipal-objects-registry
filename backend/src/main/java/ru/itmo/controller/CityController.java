@@ -12,6 +12,8 @@ import org.springframework.web.multipart.MultipartFile;
 import ru.itmo.dto.*;
 import ru.itmo.service.CityImportService;
 import ru.itmo.service.CityService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -99,10 +101,6 @@ public class CityController {
         }
     }
 
-    @DeleteMapping("/all")
-    public ResponseEntity<Void> deleteAll() {
-        service.deleteAllCities();
-        return ResponseEntity.noContent().build();
-    }
+
 }
 
