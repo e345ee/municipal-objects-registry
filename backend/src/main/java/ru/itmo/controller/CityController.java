@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ru.itmo.dto.*;
@@ -96,6 +97,12 @@ public class CityController {
         } catch (java.io.IOException e) {
             throw new IllegalArgumentException("Ошибка чтения файла: " + e.getMessage());
         }
+    }
+
+    @DeleteMapping("/all")
+    public ResponseEntity<Void> deleteAll() {
+        service.deleteAllCities();
+        return ResponseEntity.noContent().build();
     }
 }
 

@@ -523,5 +523,10 @@ public class CityService {
                 "Нельзя создать/обновить столицу: рост губернатора должен быть ≥ " + (int) minHeightCm + " см."
         );
     }
+
+    @Transactional
+    public void deleteAllCities() {
+        cityRepo.deleteAllInBatch(); 
+    }
 }
-}
+
