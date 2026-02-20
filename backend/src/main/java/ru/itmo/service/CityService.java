@@ -505,11 +505,23 @@ public class CityService {
     }
 
     private void validateCapitalRequiresGovernor(City city) {
-        if (city != null && city.isCapital() && city.getGovernor() == null) {
-            throw new BusinessRuleViolationException(
-                    "CAPITAL_REQUIRES_GOVERNOR",
-                    "Город не может быть столицей без гувернотра."
-            );
-        }
+    if (city == null || !city.isCapital()) return;
+
+    Human governor = city.getGovernor();
+    if (governor == null) {
+        throw new BusinessRuleViolationException(
+                "CAPITAL_REQUIRES_GOVERNOR",
+                "Город не может быть столицей без губернатора."
+        );
     }
+
+
+    float minHeightCm = 150.0f;
+    if (governor.getHeight() < minHeightCm) {
+        throw new BusinessRuleViolationException(
+                "CAPITAL_GOVERNOR_TOO_SHORT",
+                "Нельзя создать/обновить столицу: рост губернатора должен быть ≥ " + (int) minHeightCm + " см."
+        );
+    }
+}
 }
