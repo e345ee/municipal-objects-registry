@@ -1,6 +1,8 @@
 package ru.itmo.domain;
 
 import jakarta.persistence.*;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,7 +12,9 @@ import java.time.LocalDate;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SourceType;
+import org.hibernate.type.SqlTypes;
 import java.util.Date;
 
 @NamedEntityGraph(
@@ -67,11 +71,13 @@ public class City {
     private Integer telephoneCode;
 
     @NotNull(message = "Climate must be specified")
-    @Convert(converter = ClimatePgEnumConverter.class)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "climate", columnDefinition = "climate", nullable = false)
     private Climate climate;
 
-    @Convert(converter = GovernmentPgEnumConverter.class)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "government", columnDefinition = "government")
     private Government government;
 

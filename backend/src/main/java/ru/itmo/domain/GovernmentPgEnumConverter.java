@@ -4,7 +4,7 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import org.postgresql.util.PGobject;
 
-@Converter(autoApply = true)
+@Converter(autoApply = false)
 public class GovernmentPgEnumConverter implements AttributeConverter<Government, Object> {
 
     @Override

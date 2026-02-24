@@ -5,7 +5,7 @@ import jakarta.persistence.Converter;
 import org.postgresql.util.PGobject;
 import ru.itmo.domain.Climate;
 
-@Converter(autoApply = true)
+@Converter(autoApply = false)
 public class ClimatePgEnumConverter implements AttributeConverter<Climate, Object> {
 
     @Override
