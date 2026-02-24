@@ -160,7 +160,8 @@ public class MinioImportFileStorageService implements ImportFileStorageService {
                 if (item.isDir()) {
                     continue;
                 }
-                OffsetDateTime lm = item.lastModified();
+                var zdt = item.lastModified();
+                OffsetDateTime lm = zdt != null ? zdt.toOffsetDateTime() : null;
                 String key = item.objectName();
                 rows.add(new Row(key, fileNameFromKey(key), item.size(), lm, lm != null ? lm.toString() : null));
             }

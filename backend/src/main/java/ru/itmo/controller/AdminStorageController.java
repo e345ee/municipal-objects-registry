@@ -20,6 +20,7 @@ import ru.itmo.dto.MinioStoredFileDto;
 import ru.itmo.service.CityImportService;
 import ru.itmo.storage.ImportFileStorageService;
 import ru.itmo.storage.StoredImportFile;
+import java.io.IOException;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -88,8 +89,8 @@ public class AdminStorageController {
         try {
             var dtos = objectMapper.readValue(bytes, new TypeReference<List<CityDto>>() {});
             return cityImportService.importCities(dtos, bytes, fileNameFromKey(key), debugFailStage);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Некорректный JSON в файле MinIO: " + e.getOriginalMessage());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Некорректный JSON в файле MinIO: " + e.getMessage());
         }
     }
 
