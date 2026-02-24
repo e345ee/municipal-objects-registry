@@ -20,6 +20,7 @@ public class WsEventPublisher {
             case "Human" -> "/topic/humans";
             case "Coordinates" -> "/topic/coordinates";
             case "ImportOperation" -> "/topic/imports";
+            case "MinioFile" -> "/topic/minio-files";
             default -> "/topic/changes";
         };
 

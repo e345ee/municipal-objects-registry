@@ -1,9 +1,12 @@
 import React from "react";
 import CitiesApi from "../api/cities";
 import ImportsApi from "../api/imports";
+import AdminApi from "../api/admin";
 import { createStomp } from "../realtime/bus";
 
 const CLIMATES = ["RAIN_FOREST", "HUMIDSUBTROPICAL", "TUNDRA"];
+const API_BASE = process.env.REACT_APP_API_BASE || "";
+
 const GOVERNMENTS = [
   "DEMARCHY",
   "KLEPTOCRACY",
@@ -32,6 +35,20 @@ export default function ImportPage() {
   const [size, setSize] = React.useState(10);
   const [totalPages, setTotalPages] = React.useState(0);
   const [totalElements, setTotalElements] = React.useState(0);
+  const [infra, setInfra] = React.useState(null);
+  const [infraLoading, setInfraLoading] = React.useState(false);
+  const [infraError, setInfraError] = React.useState("");
+  const [adminActionMsg, setAdminActionMsg] = React.useState("");
+  const [purging, setPurging] = React.useState(false);
+
+  const [minioFiles, setMinioFiles] = React.useState([]);
+  const [filesLoading, setFilesLoading] = React.useState(false);
+  const [filesError, setFilesError] = React.useState("");
+  const [filesPage, setFilesPage] = React.useState(0);
+  const [filesSize, setFilesSize] = React.useState(10);
+  const [filesTotalPages, setFilesTotalPages] = React.useState(0);
+  const [filesTotalElements, setFilesTotalElements] = React.useState(0);
+  const [reimportingKey, setReimportingKey] = React.useState("");
 
   const resetImportState = React.useCallback(() => {
     setFileText("");
@@ -110,6 +127,8 @@ export default function ImportPage() {
   }, [refreshHistory]);
 
   const refreshRef = React.useRef(null);
+  const refreshInfraRef = React.useRef(null);
+  const refreshMinioFilesRef = React.useRef(null);
   React.useEffect(() => {
     refreshRef.current = refreshHistory;
   }, [refreshHistory]);
@@ -118,13 +137,129 @@ export default function ImportPage() {
     const client = createStomp(
       () => {
         refreshRef.current?.();
+        refreshMinioFilesRef.current?.();
+        refreshInfraRef.current?.();
       },
-      ["/topic/imports"]
+      ["/topic/imports", "/topic/minio-files"]
     );
 
     client.activate();
     return () => client.deactivate();
   }, []);
+
+
+  const refreshInfra = React.useCallback(async () => {
+    setInfraLoading(true);
+    setInfraError("");
+    try {
+      const resp = await AdminApi.getInfraOverview();
+      setInfra(resp);
+    } catch (e) {
+      setInfraError(extractApiMessage(e) || "Ошибка получения статуса инфраструктуры");
+    } finally {
+      setInfraLoading(false);
+    }
+  }, []);
+
+  const refreshMinioFiles = React.useCallback(async () => {
+    setFilesLoading(true);
+    setFilesError("");
+    try {
+      const resp = await AdminApi.listMinioFiles({ page: filesPage, size: filesSize });
+      setMinioFiles(resp?.content ?? []);
+      setFilesTotalPages(resp?.totalPages ?? 0);
+      setFilesTotalElements(resp?.totalElements ?? 0);
+
+      if ((resp?.totalPages ?? 0) > 0 && filesPage >= resp.totalPages) {
+        setFilesPage(Math.max(0, resp.totalPages - 1));
+      }
+    } catch (e) {
+      setFilesError(extractApiMessage(e) || "Ошибка загрузки файлов MinIO");
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [filesPage, filesSize]);
+
+  React.useEffect(() => {
+    refreshInfra();
+  }, [refreshInfra]);
+
+  React.useEffect(() => {
+    refreshInfraRef.current = refreshInfra;
+  }, [refreshInfra]);
+
+  React.useEffect(() => {
+    refreshMinioFiles();
+  }, [refreshMinioFiles]);
+
+  React.useEffect(() => {
+    refreshMinioFilesRef.current = refreshMinioFiles;
+  }, [refreshMinioFiles]);
+
+  const runAdminAction = React.useCallback(async (action, successMessage) => {
+    setAdminActionMsg("");
+    try {
+      await action();
+      if (successMessage) setAdminActionMsg(successMessage);
+      await Promise.allSettled([refreshInfra(), refreshMinioFiles(), refreshHistory()]);
+    } catch (e) {
+      setAdminActionMsg(extractApiMessage(e) || "Не удалось выполнить действие");
+    }
+  }, [refreshInfra, refreshMinioFiles, refreshHistory]);
+
+  const toggleL2Logging = async (enabled) => {
+    await runAdminAction(() => AdminApi.setL2StatsLogging(enabled), enabled ? "Логирование L2 включено" : "Логирование L2 выключено");
+  };
+
+  const toggleInfraFailure = async (target, enabled) => {
+    const targetName = target === "minio" ? "MinIO" : "PostgreSQL";
+    await runAdminAction(
+      () => AdminApi.setSimulatedFailure(target, enabled),
+      enabled ? `Симуляция отказа ${targetName} включена` : `Симуляция отказа ${targetName} выключена`
+    );
+  };
+
+  const purgeAllObjects = async () => {
+    const ok = window.confirm("Удалить все объекты (города, координаты, люди)?");
+    if (!ok) return;
+
+    setPurging(true);
+    try {
+      await runAdminAction(() => AdminApi.purgeAllObjects(), "Все объекты удалены");
+    } finally {
+      setPurging(false);
+    }
+  };
+
+  const reimportFromMinio = async (f) => {
+    if (!f?.objectKey) return;
+    setReimportingKey(f.objectKey);
+    setUploadResult(null);
+    setUploadError(null);
+    setAdminActionMsg("");
+    try {
+      const resp = await AdminApi.reimportMinioFile(f.objectKey);
+      setUploadResult(resp);
+      setAdminActionMsg(`Повторный импорт выполнен: ${f.fileName || f.objectKey}`);
+      await Promise.allSettled([refreshHistory(), refreshMinioFiles(), refreshInfra()]);
+    } catch (e) {
+      const resp = e?.response?.data;
+      if (resp?.error === "validation_failed" && resp?.details?.items) {
+        setUploadError({
+          type: "validation_failed",
+          message: resp?.message || "Повторный импорт отклонён из-за ошибок валидации",
+          items: resp.details.items,
+        });
+      } else {
+        setUploadError({
+          type: "error",
+          message: extractApiMessage(e) || "Ошибка повторного импорта",
+        });
+      }
+    } finally {
+      setReimportingKey("");
+    }
+  };
 
   const onUpload = async () => {
     setUploading(true);
@@ -164,6 +299,77 @@ export default function ImportPage() {
   return (
     <div style={{ padding: "0 20px 20px" }}>
       <h2 style={{ margin: "0 0 12px" }}>Импорт городов из JSON</h2>
+
+      <div style={{ ...card, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0 }}>Мониторинг и админ-действия</h3>
+          <button onClick={refreshInfra} disabled={infraLoading}>
+            {infraLoading ? "Проверка..." : "Проверить инфраструктуру"}
+          </button>
+          <button onClick={purgeAllObjects} disabled={purging}>
+            {purging ? "Удаление..." : "Удалить все объекты"}
+          </button>
+          {adminActionMsg && <span style={{ fontSize: 13, opacity: 0.9 }}>{adminActionMsg}</span>}
+        </div>
+
+        {infraError && (
+          <div style={{ ...banner, ...bannerError }}>
+            <div style={{ fontWeight: 600 }}>Ошибка статуса инфраструктуры</div>
+            <div>{infraError}</div>
+          </div>
+        )}
+
+        {infra && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, marginTop: 12 }}>
+            <div style={subCard}>
+              <div style={subTitle}>Пул соединений PostgreSQL (DBCP2)</div>
+              <div style={kvList}>
+                <div>Занято: <strong>{infra?.dbPool?.active ?? "—"}</strong></div>
+                <div>Idle: <strong>{infra?.dbPool?.idle ?? "—"}</strong></div>
+                <div>Свободно (до maxTotal): <strong>{infra?.dbPool?.freeCapacity ?? "—"}</strong></div>
+                <div>maxTotal: <strong>{infra?.dbPool?.maxTotal ?? "—"}</strong></div>
+              </div>
+            </div>
+
+            <div style={subCard}>
+              <div style={subTitle}>L2 Cache / логирование</div>
+              <div style={kvList}>
+                <div>Логирование L2: <strong>{boolLabel(infra?.cache?.l2StatsLoggingEnabled)}</strong></div>
+                <div>Hibernate statistics: <strong>{boolLabel(infra?.cache?.statisticsEnabled)}</strong></div>
+                <div>Hits / Misses / Puts: <strong>{infra?.cache?.hits ?? 0}</strong> / <strong>{infra?.cache?.misses ?? 0}</strong> / <strong>{infra?.cache?.puts ?? 0}</strong></div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button onClick={() => toggleL2Logging(true)} disabled={infraLoading || infra?.cache?.l2StatsLoggingEnabled === true}>Включить логирование</button>
+                <button onClick={() => toggleL2Logging(false)} disabled={infraLoading || infra?.cache?.l2StatsLoggingEnabled === false}>Выключить логирование</button>
+              </div>
+            </div>
+
+            <div style={subCard}>
+              <div style={subTitle}>Доступность зависимостей</div>
+              <div style={kvList}>
+                <div>PostgreSQL: <StatusBadge ok={!!infra?.postgres?.effectiveAvailable} label={infra?.postgres?.effectiveAvailable ? "доступен" : "недоступен"} /></div>
+                <div>MinIO: <StatusBadge ok={!!infra?.minio?.effectiveAvailable} label={infra?.minio?.effectiveAvailable ? "доступен" : "недоступен"} /></div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>
+                  Физически: PG={boolShort(infra?.postgres?.actualAvailable)}, MinIO={boolShort(infra?.minio?.actualAvailable)}; симуляция: PG={boolShort(infra?.postgres?.simulatedFailure)}, MinIO={boolShort(infra?.minio?.simulatedFailure)}
+                </div>
+              </div>
+              {(infra?.postgres?.message || infra?.minio?.message) && (
+                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+                  {infra?.postgres?.message ? `PG: ${infra.postgres.message}` : ""}
+                  {infra?.postgres?.message && infra?.minio?.message ? " • " : ""}
+                  {infra?.minio?.message ? `MinIO: ${infra.minio.message}` : ""}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button onClick={() => toggleInfraFailure("postgres", true)} disabled={infra?.postgres?.simulatedFailure}>Симулировать отказ PostgreSQL</button>
+                <button onClick={() => toggleInfraFailure("postgres", false)} disabled={!infra?.postgres?.simulatedFailure}>Восстановить PostgreSQL</button>
+                <button onClick={() => toggleInfraFailure("minio", true)} disabled={infra?.minio?.simulatedFailure}>Симулировать отказ MinIO</button>
+                <button onClick={() => toggleInfraFailure("minio", false)} disabled={!infra?.minio?.simulatedFailure}>Восстановить MinIO</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div style={card}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -286,6 +492,7 @@ export default function ImportPage() {
                 <TH right>Добавлено</TH>
                 <TH>Начало</TH>
                 <TH>Окончание</TH>
+                <TH>Файл</TH>
               </tr>
             </thead>
             <tbody>
@@ -300,18 +507,27 @@ export default function ImportPage() {
                   </TD>
                   <TD noEllipsis>{fmtDateTime(op.startedAt)}</TD>
                   <TD noEllipsis>{op.finishedAt ? fmtDateTime(op.finishedAt) : "—"}</TD>
+                  <TD noEllipsis>
+                    {op.downloadUrl ? (
+                      <a href={`${API_BASE}${op.downloadUrl}`} target="_blank" rel="noreferrer">
+                        {op.sourceFilename || "Скачать JSON"}
+                      </a>
+                    ) : (
+                      op.sourceFilename || "—"
+                    )}
+                  </TD>
                 </tr>
               ))}
               {!histLoading && history.length === 0 && (
                 <tr>
-                  <td style={tdEmpty} colSpan={5}>
+                  <td style={tdEmpty} colSpan={6}>
                     История пуста
                   </td>
                 </tr>
               )}
               {histLoading && (
                 <tr>
-                  <td style={tdEmpty} colSpan={5}>
+                  <td style={tdEmpty} colSpan={6}>
                     Загрузка…
                   </td>
                 </tr>
@@ -335,6 +551,105 @@ export default function ImportPage() {
         <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85, lineHeight: 1.35 }}></div>
       </div>
 
+
+      <h2 style={{ margin: "20px 0 12px" }}>Файлы в MinIO</h2>
+
+      <div style={card}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={refreshMinioFiles} disabled={filesLoading}>
+            Обновить список файлов
+          </button>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            Размер страницы:
+            <select
+              value={filesSize}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setFilesSize(next);
+                if (filesPage !== 0) setFilesPage(0);
+              }}
+            >
+              {[5, 10, 25, 50].map((n) => (
+                <option key={`f-${n}`} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div style={{ marginLeft: "auto", fontSize: 13, opacity: 0.9 }}>
+            {filesTotalElements === 0 ? "Файлов нет" : `Показаны ${filesPage * filesSize + 1}–${Math.min((filesPage + 1) * filesSize, filesTotalElements)} из ${filesTotalElements}`}
+          </div>
+        </div>
+
+        {filesError && (
+          <div style={{ ...banner, ...bannerError }}>
+            <div style={{ fontWeight: 600 }}>Ошибка списка MinIO</div>
+            <div>{filesError}</div>
+          </div>
+        )}
+
+        <div style={{ overflow: "auto", marginTop: 12 }}>
+          <table style={table}>
+            <thead>
+              <tr>
+                <TH>Файл</TH>
+                <TH>Ключ MinIO</TH>
+                <TH right>Размер</TH>
+                <TH>Изменен</TH>
+                <TH>Скачать</TH>
+                <TH>Импорт</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {minioFiles.map((f) => (
+                <tr key={f.objectKey}>
+                  <TD noEllipsis>{f.fileName || "—"}</TD>
+                  <TD noEllipsis><code>{f.objectKey}</code></TD>
+                  <TD right noEllipsis>{formatBytes(f.sizeBytes)}</TD>
+                  <TD noEllipsis>{fmtDateTime(f.lastModified)}</TD>
+                  <TD noEllipsis>
+                    {f.downloadUrl ? (
+                      <a href={`${API_BASE}${f.downloadUrl}`} target="_blank" rel="noreferrer">Скачать</a>
+                    ) : "—"}
+                  </TD>
+                  <TD noEllipsis>
+                    <button
+                      onClick={() => reimportFromMinio(f)}
+                      disabled={!!reimportingKey || filesLoading}
+                      style={(reimportingKey && reimportingKey === f.objectKey) ? btnDisabled : undefined}
+                    >
+                      {reimportingKey === f.objectKey ? "Импорт..." : "Импортировать"}
+                    </button>
+                  </TD>
+                </tr>
+              ))}
+              {!filesLoading && minioFiles.length === 0 && (
+                <tr>
+                  <td style={tdEmpty} colSpan={6}>Файлы не найдены</td>
+                </tr>
+              )}
+              {filesLoading && (
+                <tr>
+                  <td style={tdEmpty} colSpan={6}>Загрузка…</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={pager}>
+          <button onClick={() => setFilesPage((p) => Math.max(0, p - 1))} disabled={filesLoading || filesPage <= 0}>
+            Назад
+          </button>
+          <div>
+            Стр. {filesTotalPages === 0 ? 0 : filesPage + 1} / {filesTotalPages}
+          </div>
+          <button onClick={() => setFilesPage((p) => p + 1)} disabled={filesLoading || filesTotalPages === 0 || filesPage + 1 >= filesTotalPages}>
+            Вперёд
+          </button>
+        </div>
+      </div>
       {parsed && Array.isArray(parsed) && parsed.length > 0 && (
         <div style={{ ...card, marginTop: 20 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
@@ -582,6 +897,46 @@ function fmtDateTime(v) {
   return s.replace("T", " ");
 }
 
+function boolLabel(v) {
+  return v ? "включено" : "выключено";
+}
+
+function boolShort(v) {
+  return v ? "да" : "нет";
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+}
+
+function StatusBadge({ ok, label }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "2px 10px",
+        borderRadius: 999,
+        border: `1px solid ${ok ? "#b7e3c0" : "#f2b8b5"}`,
+        background: ok ? "#eefaf1" : "#fff0ef",
+        fontSize: 12,
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: ok ? "#22c55e" : "#ef4444", display: "inline-block" }} />
+      {label}
+    </span>
+  );
+}
+
 function statusPill(status) {
   const base = {
     display: "inline-block",
@@ -594,8 +949,33 @@ function statusPill(status) {
   if (status === "SUCCESS") return { ...base, borderColor: "#b7e3c0", background: "#eefaf1" };
   if (status === "FAILED") return { ...base, borderColor: "#f2b8b5", background: "#fff0ef" };
   if (status === "IN_PROGRESS") return { ...base, borderColor: "#c9d7ff", background: "#f0f5ff" };
+  if (status === "FILE_PREPARED") return { ...base, borderColor: "#c9d7ff", background: "#f0f5ff" };
+  if (status === "FILE_COMMITTED") return { ...base, borderColor: "#bcd8ff", background: "#eef5ff" };
+  if (status === "DB_COMMITTED") return { ...base, borderColor: "#cde8d0", background: "#f2fbf4" };
+  if (status === "COMPENSATED") return { ...base, borderColor: "#f1d59b", background: "#fff7e6" };
   return base;
 }
+
+const subCard = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 10,
+  padding: 10,
+  background: "#fafafa",
+};
+
+const subTitle = {
+  fontSize: 13,
+  fontWeight: 600,
+  marginBottom: 8,
+};
+
+const kvList = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  fontSize: 13,
+  lineHeight: 1.3,
+};
 
 const card = {
   background: "#fff",

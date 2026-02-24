@@ -1,7 +1,11 @@
 package ru.itmo.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
+@Cacheable
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE, region = "human")
 @Entity
 @Table(name = "human")
 public class Human {

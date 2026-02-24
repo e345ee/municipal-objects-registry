@@ -74,11 +74,16 @@ CREATE TABLE city
 
 CREATE TABLE import_operation (
                                   id BIGSERIAL PRIMARY KEY,
+                                  tx_id VARCHAR(64) NOT NULL UNIQUE,
                                   started_at TIMESTAMP NOT NULL DEFAULT now(),
                                   finished_at TIMESTAMP,
                                   status VARCHAR(32) NOT NULL,
                                   added_count INTEGER,
-                                  error_message TEXT
+                                  error_message TEXT,
+                                  source_filename TEXT,
+                                  file_bucket VARCHAR(255),
+                                  file_staging_key TEXT,
+                                  file_final_key TEXT
 );
 
 
@@ -89,3 +94,4 @@ CREATE INDEX idx_city_coordinates  ON city (coordinates_id);
 CREATE INDEX idx_city_governor     ON city (governor_id);
 CREATE INDEX idx_import_operation_started ON import_operation(started_at DESC);
 CREATE INDEX idx_import_operation_status ON import_operation(status);
+CREATE INDEX idx_import_operation_tx_id ON import_operation(tx_id);

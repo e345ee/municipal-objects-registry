@@ -1,8 +1,12 @@
 package ru.itmo.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 import jakarta.validation.constraints.Max;
 
+@Cacheable
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE, region = "coordinates")
 @Entity @Table(name = "coordinates")
 public class Coordinates {
     @Id

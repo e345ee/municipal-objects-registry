@@ -5,22 +5,25 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import org.eclipse.persistence.annotations.FetchAttribute;
-import org.eclipse.persistence.annotations.FetchGroup;
-import org.eclipse.persistence.annotations.ReturnInsert;
 
 import java.time.LocalDate;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SourceType;
 import java.util.Date;
 
+@NamedEntityGraph(
+    name = "City.withRelations",
+    attributeNodes = {
+        @NamedAttributeNode("coordinates"),
+        @NamedAttributeNode("governor")
+    }
+)
+@Cacheable
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE, region = "city")
 @Entity
 @Table(name = "city")
-@FetchGroup(
-        name = "city.withRelations",
-        attributes = {
-                @FetchAttribute(name = "coordinates"),
-                @FetchAttribute(name = "governor")
-        }
-)
 public class City {
 
     @Id
@@ -36,7 +39,7 @@ public class City {
     private Coordinates coordinates;
 
     @Column(name = "creation_date", nullable = false, updatable = false)
-    @ReturnInsert(returnOnly = true)
+    @CreationTimestamp(source = SourceType.DB)
     private LocalDate creationDate;
 
     @Positive(message = "Area must be > 0")

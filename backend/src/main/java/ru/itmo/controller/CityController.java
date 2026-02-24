@@ -6,14 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ru.itmo.dto.*;
 import ru.itmo.service.CityImportService;
 import ru.itmo.service.CityService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -86,21 +83,20 @@ public class CityController {
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ImportResultDto importJson(@RequestPart("file") MultipartFile file) {
+    public ImportResultDto importJson(@RequestPart("file") MultipartFile file,
+                                      @RequestParam(name = "debugFailStage", required = false) String debugFailStage) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Файл не передан или пустой.");
         }
 
-        try (var is = file.getInputStream()) {
-            List<CityDto> dtos = objectMapper.readValue(is, new TypeReference<List<CityDto>>() {});
-            return importService.importCities(dtos);
+        try {
+            byte[] fileBytes = file.getBytes();
+            List<CityDto> dtos = objectMapper.readValue(fileBytes, new TypeReference<List<CityDto>>() {});
+            return importService.importCities(dtos, fileBytes, file.getOriginalFilename(), debugFailStage);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Некорректный JSON: " + e.getOriginalMessage());
         } catch (java.io.IOException e) {
             throw new IllegalArgumentException("Ошибка чтения файла: " + e.getMessage());
         }
     }
-
-
 }
-

@@ -16,6 +16,7 @@ import java.util.List;
 
 @EnableWebMvc
 @Configuration
+@EnableAspectJAutoProxy
 @ComponentScan(basePackages = "ru.itmo")
 public class WebConfig implements WebMvcConfigurer {
 

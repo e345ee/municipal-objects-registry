@@ -188,6 +188,10 @@ public class CityService {
         return runSerializableWithRetry(() -> doCreate(dto));
     }
 
+    public CityDto createInCurrentTransactionForImport(CityDto dto) {
+        return doCreate(dto);
+    }
+
     private CityDto doCreate(CityDto dto) {
         if ((dto.getCoordinatesId() == null) == (dto.getCoordinates() == null)) {
             throw new IllegalArgumentException("Provide either coordinatesId OR coordinates (exactly one).");

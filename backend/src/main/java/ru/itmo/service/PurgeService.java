@@ -12,17 +12,21 @@ public class PurgeService {
     private final CityRepository cityRepo;
     private final HumanRepository humanRepo;
     private final CoordinatesRepository coordinatesRepo;
+    private final InfraFailureSimulationService infraFailures;
 
     public PurgeService(CityRepository cityRepo,
                         HumanRepository humanRepo,
-                        CoordinatesRepository coordinatesRepo) {
+                        CoordinatesRepository coordinatesRepo,
+                        InfraFailureSimulationService infraFailures) {
         this.cityRepo = cityRepo;
         this.humanRepo = humanRepo;
         this.coordinatesRepo = coordinatesRepo;
+        this.infraFailures = infraFailures;
     }
 
     @Transactional
     public void purgeAll() {
+        infraFailures.assertPostgresAvailable();
         cityRepo.deleteAllInBatch();
         humanRepo.deleteAllInBatch();
         coordinatesRepo.deleteAllInBatch();

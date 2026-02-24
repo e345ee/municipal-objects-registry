@@ -4,9 +4,9 @@ import jakarta.persistence.EntityManagerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.JpaDialect;
-import org.springframework.orm.jpa.vendor.EclipseLinkJpaDialect;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.vendor.HibernateJpaDialect;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
@@ -16,7 +16,7 @@ public class TxConfig {
 
     @Bean
     public JpaDialect jpaDialect() {
-        return new EclipseLinkJpaDialect();
+        return new HibernateJpaDialect();
     }
 
     @Bean(name = "transactionManager")
@@ -27,4 +27,3 @@ public class TxConfig {
         return tm;
     }
 }
-
